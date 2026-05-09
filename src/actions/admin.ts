@@ -25,37 +25,37 @@ async function requireAdmin() {
 export async function adminSetActiveScenario(id: string) {
   await requireAdmin();
   await setActiveScenario(id);
-  revalidatePath('/active-threat/admin');
+  revalidatePath('/mvs/admin');
 }
 
 export async function adminUpdateScreenText(screenDbId: string, text: string) {
   await requireAdmin();
   await updateScreenText(screenDbId, text);
-  revalidatePath('/active-threat/admin');
+  revalidatePath('/mvs/admin');
 }
 
 export async function adminUpdateScreenPrompt(screenDbId: string, prompt: string) {
   await requireAdmin();
   await updateScreenPrompt(screenDbId, prompt);
-  revalidatePath('/active-threat/admin');
+  revalidatePath('/mvs/admin');
 }
 
 export async function adminUpdateScreenTimer(screenDbId: string, seconds: number) {
   await requireAdmin();
   await updateScreenTimer(screenDbId, seconds);
-  revalidatePath('/active-threat/admin');
+  revalidatePath('/mvs/admin');
 }
 
 export async function adminUpdateOptionText(optionDbId: string, text: string) {
   await requireAdmin();
   await updateOptionText(optionDbId, text);
-  revalidatePath('/active-threat/admin');
+  revalidatePath('/mvs/admin');
 }
 
 export async function adminUpdateOptionRoute(optionDbId: string, nextScreenId: string | null) {
   await requireAdmin();
   await updateOptionRoute(optionDbId, nextScreenId);
-  revalidatePath('/active-threat/admin');
+  revalidatePath('/mvs/admin');
 }
 
 export async function adminAddScreen(
@@ -67,7 +67,7 @@ export async function adminAddScreen(
 ) {
   await requireAdmin();
   await addScreen(scenarioFk, screenId, text, timerSeconds, sortOrder);
-  revalidatePath('/active-threat/admin');
+  revalidatePath('/mvs/admin');
 }
 
 export async function adminAddOption(
@@ -79,19 +79,19 @@ export async function adminAddOption(
 ) {
   await requireAdmin();
   await addOption(screenFk, label, text, nextScreenId, sortOrder);
-  revalidatePath('/active-threat/admin');
+  revalidatePath('/mvs/admin');
 }
 
 export async function adminDeleteScreen(screenDbId: string) {
   await requireAdmin();
   await deleteScreen(screenDbId);
-  revalidatePath('/active-threat/admin');
+  revalidatePath('/mvs/admin');
 }
 
 export async function adminDeleteOption(optionDbId: string) {
   await requireAdmin();
   await deleteOption(optionDbId);
-  revalidatePath('/active-threat/admin');
+  revalidatePath('/mvs/admin');
 }
 
 export async function adminUpsertResponseTag(
@@ -107,7 +107,7 @@ export async function adminUpsertResponseTag(
     option_label: optionLabel,
     response_category: category,
   });
-  revalidatePath('/active-threat/admin');
+  revalidatePath('/mvs/admin');
 }
 
 export async function adminDeleteResponseTag(
@@ -117,5 +117,5 @@ export async function adminDeleteResponseTag(
 ) {
   await requireAdmin();
   await deleteResponseTag(scenarioFk, screenId, optionLabel);
-  revalidatePath('/active-threat/admin');
+  revalidatePath('/mvs/admin');
 }

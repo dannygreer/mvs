@@ -24,9 +24,7 @@ export default function TitleScreen({ onContinue }: TitleScreenProps) {
       <div className="absolute inset-0 bg-black/60" />
       <div className="relative w-full max-w-md space-y-8 bg-white rounded-xl p-8 shadow-lg">
         <div className="text-center space-y-3">
-          <h1 className="text-3xl font-bold text-zinc-900">
-            Active Threat Response
-          </h1>
+          <h1 className="text-3xl font-bold text-zinc-900">MVS</h1>
           <p className="text-zinc-600 text-lg">Training Assessment</p>
         </div>
 

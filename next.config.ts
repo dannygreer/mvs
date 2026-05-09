@@ -5,12 +5,22 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/admin",
-        destination: "/active-threat/admin",
+        destination: "/mvs/admin",
         permanent: true,
       },
       {
         source: "/admin/:path*",
-        destination: "/active-threat/admin/:path*",
+        destination: "/mvs/admin/:path*",
+        permanent: true,
+      },
+      {
+        source: "/active-threat/admin",
+        destination: "/mvs/admin",
+        permanent: true,
+      },
+      {
+        source: "/active-threat/admin/:path*",
+        destination: "/mvs/admin/:path*",
         permanent: true,
       },
     ];

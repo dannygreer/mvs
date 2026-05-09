@@ -85,5 +85,5 @@ export async function deleteAssessmentResult(id: number): Promise<void> {
   const isAdmin = await verifySession();
   if (!isAdmin) throw new Error('Unauthorized');
   await deleteResponseByParticipant(id);
-  revalidatePath('/active-threat/admin');
+  revalidatePath('/mvs/admin');
 }

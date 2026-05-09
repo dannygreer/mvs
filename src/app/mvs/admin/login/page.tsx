@@ -6,7 +6,7 @@ export default function AdminLoginPage() {
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-zinc-900">Admin Login</h1>
-          <p className="text-zinc-500 mt-1">Active Threat Training</p>
+          <p className="text-zinc-500 mt-1">MVS</p>
         </div>
         <LoginForm />
       </div>

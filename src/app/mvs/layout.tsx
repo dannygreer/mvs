@@ -1,13 +1,13 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Active Threat Response Training',
+  title: 'MVS',
   icons: {
-    icon: '/active-threat-icon.png',
+    icon: '/mvs-icon.png',
   },
 };
 
-export default function ActiveThreatLayout({
+export default function MvsLayout({
   children,
 }: {
   children: React.ReactNode;

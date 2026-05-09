@@ -14,10 +14,10 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Active Threat Response Training",
-  description: "Active threat response training assessment",
+  title: "MVS",
+  description: "MVS",
   icons: {
-    icon: "/active-threat-icon.png",
+    icon: "/mvs-icon.png",
   },
 };
 

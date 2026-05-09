@@ -26,10 +26,10 @@ export async function adminLogin(
   }
 
   await createSession();
-  redirect('/active-threat/admin');
+  redirect('/mvs/admin');
 }
 
 export async function adminLogout() {
   await deleteSession();
-  redirect('/active-threat/admin/login');
+  redirect('/mvs/admin/login');
 }

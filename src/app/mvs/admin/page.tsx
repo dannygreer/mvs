@@ -44,9 +44,7 @@ export default async function AdminDashboardPage() {
       <header className="bg-white border-b border-zinc-200">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-zinc-900">
-              Active Threat Training — Admin
-            </h1>
+            <h1 className="text-xl font-bold text-zinc-900">MVS — Admin</h1>
             <p className="text-sm text-zinc-500">
               {responsesWide.length} total responses
             </p>
