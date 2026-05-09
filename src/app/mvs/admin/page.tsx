@@ -6,7 +6,7 @@ import {
   getAllScenarios,
 } from '@/lib/db';
 import AdminDashboard from '@/components/admin/AdminDashboard';
-import { adminLogout } from '@/actions/auth';
+import { signOut } from '@/actions/session';
 import type {
   ResponseWideRow,
   ResponseLongRow,
@@ -62,7 +62,7 @@ export default async function AdminDashboardPage() {
             >
               CSV (Long)
             </a>
-            <form action={adminLogout}>
+            <form action={signOut}>
               <button
                 type="submit"
                 className="px-4 py-2 border border-zinc-300 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-100 transition-colors"

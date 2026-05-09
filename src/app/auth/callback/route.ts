@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { createSession } from '@/lib/session';
 
 // Reject scheme-relative (//evil.com), backslash-tricks, and absolute URLs.
 function isSafeNext(next: string | null): next is string {
@@ -11,9 +10,8 @@ function isSafeNext(next: string | null): next is string {
 }
 
 // Magic-link callback. Exchanges the ?code= for a Supabase session cookie,
-// then routes by role. For super_admin we ALSO mint the legacy admin-session
-// JWT so the existing /mvs/admin proxy gate accepts the user — Day 2 removes
-// the legacy gate entirely.
+// then role-routes. The /mvs/admin proxy gate enforces super_admin
+// authorization on its own — no legacy JWT minting needed.
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
@@ -58,12 +56,6 @@ export async function GET(request: NextRequest) {
   }
 
   const role = profile?.role ?? 'student';
-
-  // Mint the legacy admin-session JWT for super_admin so /mvs/admin's proxy
-  // gate accepts them during the Day 1 → Day 2 coexistence window.
-  if (role === 'super_admin') {
-    await createSession();
-  }
 
   // Honour ?next= only when the role is allowed to land there.
   // /mvs/admin → super_admin only (today). Other roles fall back to default.

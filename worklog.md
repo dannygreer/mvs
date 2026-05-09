@@ -75,3 +75,49 @@ Append-only log of autonomous Claude Code sessions. Newest entries at the bottom
 - Promoted `dannygreer@gmail.com` to `super_admin` via SQL (auto-created `profiles` row from the trigger confirmed working: `role=student` default, then updated).
 - **End-to-end test:** form at `/auth/login` → magic link email → click → `/auth/callback?code=...` → super_admin role lookup → legacy JWT minted → landed on `/mvs/admin`. Works.
 - First implicit-flow link (from the REST smoke test) confused the flow because it landed at `/#access_token=...` instead of `?code=`. Documented for future ref: always go through the form, not the REST endpoint, so `@supabase/ssr`'s default PKCE flow is used.
+
+---
+
+## 2026-05-08 — Day 2: RLS + admin auth cut over
+
+**Branch:** `feat/rls-and-admin-cutover` (Day 1 already merged to main per Danny's call; Day 2 prompt's "stay on feat/supabase-auth" guidance superseded).
+
+**Phase B — RLS:**
+- `supabase/migrations/0003_rls.sql` applied. Replaces every "Service role full access" placeholder (except on legacy `quiz_results`) with role-aware policies.
+- Helpers `auth_role()` and `auth_org()` are `SECURITY DEFINER` with fixed `search_path = public` to avoid RLS recursion when the super_admin policy on `profiles` calls back into the function.
+- Strengthened `user update own profile` beyond the prompt's spec: blocks both `role` self-promotion AND `org_id` self-relocation (`is not distinct from` against the user's existing row).
+- `tests/rls.spec.ts` — 14 vitest cases covering super_admin/org_admin/student tenant isolation, self-promotion attempt, cross-org reads, anonymous reads, scenario writes. All green on first run. `vitest` + `dotenv` added as devDeps; `vitest.config.ts` loads `.env.local`.
+
+**Phase C — admin cut over:**
+- `src/proxy.ts` — legacy admin-session JWT gate gone. `/mvs/admin/*` now requires authenticated Supabase user with `profiles.role = 'super_admin'` (one round-trip to `profiles`; uses the user's session via the anon-key client, allowed by the "user read own profile" RLS policy). Non-super_admins now route to their own portal (`/org` or `/app`) instead of bouncing back to login.
+- `src/app/auth/callback/route.ts` — removed the `createSession()` shim that minted the legacy JWT for super_admins. Pure Supabase Auth from here.
+- New helpers: `src/lib/auth.ts` (`getSuperAdmin()`, `requireSuperAdmin()`) for server actions and route handlers; `src/actions/session.ts` (`signOut()` server action).
+- Migrated callers: `src/actions/admin.ts`, `src/actions/quiz.ts`, `src/app/api/admin/export-csv/route.ts`, `src/app/mvs/admin/page.tsx`.
+- Deleted: `src/lib/session.ts`, `src/actions/auth.ts`, `src/components/admin/LoginForm.tsx`. Stripped from `.env.local`: `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `SESSION_SECRET` — leaving them on Vercel until the merge to main lands so any unmerged preview deploys don't break.
+
+**Smoke test:**
+- Anon `GET /mvs/admin` → 307 to `/auth/login?next=%2Fmvs%2Fadmin` ✓
+- Anon `GET /mvs/admin/orgs` → 307 to `/auth/login?next=%2Fmvs%2Fadmin%2Forgs` ✓
+- `GET /mvs/admin/login` → 307 to `/auth/login?next=/mvs/admin` ✓
+- `GET /auth/login` → 200 ✓
+- `GET /` → 200 ✓
+- Authenticated super_admin path: verified earlier in browser (existing dannygreer@gmail.com session). Browser re-test post-cutover by Danny pending.
+
+**Phase D — subagent tenant-leak audit:** No blockers. Findings:
+- (1) RLS policies sound; no cross-org leaks. `auth_role()`/`auth_org()` correctly scoped to `auth.uid()`.
+- (2) Privilege escalation blocked. `user update own profile` policy locks both role and org_id.
+- (3) Admin gate solid. **Observation:** `/api/admin/*` is not proxy-gated; only the in-route `getSuperAdmin()` check protects it (intentional, but future API routes need to remember). Logged for follow-up — not blocking Day 2.
+- (4) Helper safety clean. SECURITY DEFINER + fixed search_path handles recursion correctly.
+- (5) No stale legacy refs. Grep clean.
+- (6) Non-super_admin redirect target now sensible (`/org`/`/app` instead of `/auth/login`). Updated post-audit.
+- (7) Two `getUser()` round-trips per `/mvs/admin/*` request (proxy + middleware). Functional, defer optimization.
+
+**Build green. RLS tests green (14/14).**
+
+**Day 3 plan (per `MVS_Project_Plan.md`):**
+- `0004_assessments_and_enrollments.sql`: `assessments`, `enrollments` tables.
+- Backfill: default org for existing active-threat data.
+- Admin UI: `/mvs/admin/orgs` list + create. Org detail page with roster + CRM-lite fields.
+- Bulk-invite students (paste `name,email`). Creates profile + sends Supabase Auth magic-link invite.
+
+**Vercel cleanup (post-merge):** remove `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `SESSION_SECRET` from all 3 envs in the Vercel dashboard.

@@ -7,7 +7,7 @@ import {
   getActiveScenario,
   deleteResponseByParticipant,
 } from '@/lib/db';
-import { verifySession } from '@/lib/session';
+import { requireSuperAdmin } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import type { ScreenResponse, Phase } from '@/types';
 
@@ -82,8 +82,7 @@ export async function submitAssessment(data: SubmitAssessmentData) {
 }
 
 export async function deleteAssessmentResult(id: number): Promise<void> {
-  const isAdmin = await verifySession();
-  if (!isAdmin) throw new Error('Unauthorized');
+  await requireSuperAdmin();
   await deleteResponseByParticipant(id);
   revalidatePath('/mvs/admin');
 }

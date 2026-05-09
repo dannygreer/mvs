@@ -40,3 +40,11 @@ This file is for blockers that require human action — credentials, account set
 
 ## Resolved
 *(move items here once handled — don't delete, keeps an audit trail)*
+
+### Vercel env cleanup — pending merge to main
+After `feat/rls-and-admin-cutover` merges to `main`, remove these from Vercel (Production + Preview + Development) — legacy admin auth deleted in Day 2:
+- `ADMIN_USERNAME`
+- `ADMIN_PASSWORD`
+- `SESSION_SECRET`
+
+Already stripped from local `.env.local`. Leaving on Vercel until merge so any unmerged preview deploys (e.g. Day 1's `feat/supabase-auth` branch) keep working. Once `main` ships Day 2, these are dead weight.

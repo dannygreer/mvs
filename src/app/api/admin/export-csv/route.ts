@@ -1,10 +1,10 @@
-import { verifySession } from '@/lib/session';
+import { getSuperAdmin } from '@/lib/auth';
 import { getAllResponsesWide, getAllResponsesLong } from '@/lib/db';
 import { NextRequest } from 'next/server';
 
 export async function GET(request: NextRequest) {
-  const valid = await verifySession();
-  if (!valid) return new Response('Unauthorized', { status: 401 });
+  const admin = await getSuperAdmin();
+  if (!admin) return new Response('Unauthorized', { status: 401 });
 
   const format = request.nextUrl.searchParams.get('format') || 'wide';
 

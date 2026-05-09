@@ -1,6 +1,6 @@
 'use server';
 
-import { verifySession } from '@/lib/session';
+import { requireSuperAdmin } from '@/lib/auth';
 import {
   setActiveScenario,
   updateScreenText,
@@ -18,8 +18,7 @@ import {
 import { revalidatePath } from 'next/cache';
 
 async function requireAdmin() {
-  const isAdmin = await verifySession();
-  if (!isAdmin) throw new Error('Unauthorized');
+  await requireSuperAdmin();
 }
 
 export async function adminSetActiveScenario(id: string) {
