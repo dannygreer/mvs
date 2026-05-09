@@ -312,6 +312,97 @@ describe('RLS — assessments + enrollments (0004)', () => {
     expect((data ?? []).map((r) => r.id)).toEqual([enrollmentA]);
   });
 
+  it('student can insert own responses_long; cannot insert under another student', async () => {
+    const c = await userClient(studentA.email);
+    const baseRow = {
+      participant_id: `rls_${studentA.id}`,
+      first_name: 'A',
+      last_name: 'Test',
+      phase: 'pre' as const,
+      scenario_id: 'active_threat_v1',
+      scenario_version: '1',
+      question_id: 'S1_START',
+      branch_path: '',
+      option_selected: 'A1',
+      response_category: 'controlled',
+      rt_ms: 1500,
+      timed_out: false,
+      enrollment_id: enrollmentA,
+    };
+
+    // Self insert allowed.
+    const { data: ok, error: okErr } = await c
+      .from('responses_long')
+      .insert({ ...baseRow, student_id: studentA.id })
+      .select('id')
+      .single();
+    expect(okErr).toBeNull();
+    expect(ok?.id).toBeTruthy();
+    if (ok) await admin.from('responses_long').delete().eq('id', ok.id);
+
+    // Insert with another student's id should be blocked.
+    const { error: badErr } = await c
+      .from('responses_long')
+      .insert({ ...baseRow, student_id: studentB.id });
+    expect(badErr).not.toBeNull();
+  });
+
+  it('student selects own responses, not anothers; org_admin scoped to own org', async () => {
+    // Seed one row for each student via service role.
+    const seedFor = async (uid: string) => {
+      const { data } = await admin
+        .from('responses_long')
+        .insert({
+          participant_id: `seed_${uid}`,
+          first_name: 'X',
+          last_name: 'Y',
+          phase: 'pre',
+          scenario_id: 'active_threat_v1',
+          scenario_version: '1',
+          question_id: 'S1_START',
+          branch_path: '',
+          option_selected: 'A1',
+          response_category: 'controlled',
+          rt_ms: 1234,
+          timed_out: false,
+          student_id: uid,
+        })
+        .select('id')
+        .single();
+      return data!.id as number;
+    };
+    const idA = await seedFor(studentA.id);
+    const idB = await seedFor(studentB.id);
+
+    try {
+      // studentA sees own only.
+      const sa = await userClient(studentA.email);
+      const { data: saRows } = await sa
+        .from('responses_long')
+        .select('id, student_id')
+        .in('id', [idA, idB]);
+      expect((saRows ?? []).map((r) => r.id)).toEqual([idA]);
+
+      // org_admin in orgA sees studentA's rows only.
+      const oa = await userClient(orgAdminA.email);
+      const { data: oaRows } = await oa
+        .from('responses_long')
+        .select('id, student_id')
+        .in('id', [idA, idB]);
+      expect((oaRows ?? []).map((r) => r.id)).toEqual([idA]);
+
+      // org_admin in orgB sees studentB's rows only.
+      const ob = await userClient(orgAdminB.email);
+      const { data: obRows } = await ob
+        .from('responses_long')
+        .select('id, student_id')
+        .in('id', [idA, idB]);
+      expect((obRows ?? []).map((r) => r.id)).toEqual([idB]);
+    } finally {
+      await admin.from('responses_long').delete().in('id', [idA, idB]);
+    }
+  });
+
   it('student can mark own enrollment complete but cannot reassign it', async () => {
     const c = await userClient(studentA.email);
 

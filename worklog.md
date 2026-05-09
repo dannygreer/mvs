@@ -166,3 +166,55 @@ Deferred (cosmetic / future): TOCTOU window in conflict check (single-admin mode
 
 **Open items now blocking polish, not blocking dev:**
 - Default Supabase SMTP rate limit + invite-link prefetch issue. **Recommend pulling Day 7 (Resend) up before Day 6** so the first cohort's invites are reliable.
+
+---
+
+## 2026-05-09 — Day 4: student portal + enrollment-linked response capture
+
+**Branch:** `feat/student-portal` (cut from `feat/orgs-and-invite` because Days 2+3 still unmerged).
+
+**Phase B — migration 0005 + 0006:**
+- `supabase/migrations/0005_link_responses_to_enrollments.sql` applied. Adds nullable `enrollment_id` + `student_id` columns to `responses_long` and `responses_wide` (+ indexes). Layers RLS: student insert/select-own (DB-level guard), org_admin read-in-org. Existing legacy/anonymous rows preserved untouched.
+- **Subagent caught a CHECK constraint mismatch** during review: existing `responses_long.phase` and `responses_wide.phase` constraints only allow `'pre'|'post'`, but `enrollments.phase` (added in 0004) allows `'practice'`. Submitting a practice enrollment would crash on insert. Added `0006_widen_phase_check.sql` to widen both constraints to match.
+- Added 4 new RLS test sub-assertions (across 2 cases) for student-insert-own / cross-student-blocked / org_admin-scoped reads. Full suite now 24/24 green.
+
+**Phase C — student portal:**
+- `requireStudent(currentPath)` helper in `src/lib/auth.ts` redirects super_admin→`/mvs/admin`, org_admin→`/org`, anon→`/auth/login?next=...`. Returns `{user, profile}` for students. Static-imports `redirect` from `next/navigation` so TS sees the never return.
+- `/app/layout.tsx` — minimal header (display name + sign-out).
+- `/app/page.tsx` — server component, RLS-gated authenticated client. Lists enrollments split into Assigned (Start button) and Completed (green Done badge). Empty state for new students.
+- `/app/take/[enrollmentId]/page.tsx` — RLS-gated read of enrollment + assessment + scenario. Defensive `notFound()` on wrong student. Redirect-to-`/app?notice=already_completed` when already done. Mounts `<Quiz>` with prefilled identity. Multi-choice path returns a `[NEEDS_DAY_5]` placeholder so we don't crash before Day 5.
+
+**Phase D — Quiz wiring:**
+- `Quiz.tsx` extended with optional `enrollmentId` / `studentId` / `prefillFirstName` / `prefillLastName` / `prefillPhase` props. When `enrollmentId` is set, initial step is `'reading'` (title screen skipped) and identity comes from props. **`ScenarioScreen.tsx` and reaction-time capture untouched.**
+- `submitAssessment` server action validates enrollment ownership and not-already-completed. **studentId is now derived from the authenticated session (`createSessionClient().auth.getUser()`), not the client-supplied prop** — the prop is treated as untrusted.
+- Atomic completion gate: `update enrollments set completed_at = now() where id = $1 and completed_at is null returning id`. Race losers throw `ENROLLMENT_ALREADY_COMPLETED` rather than silently overwriting.
+- New `getScenarioById` in `src/lib/db.ts` (with private `loadScenarioFromRow` shared with `getActiveScenario`).
+- Phase type widened to `'pre' | 'post' | 'practice'`. `Phase` flows through `submitAssessment` → CHECK constraint (now widened by 0006).
+
+**Phase E — subagent audit:** Caught 3 critical issues, ALL fixed pre-commit:
+1. ✅ **studentId trust violation** — server now derives studentId from session via `createSessionClient`, never trusts the client-supplied prop. Without this fix, a logged-in attacker who knew `(victim_enrollment_id, victim_user_id)` could close the victim's enrollment.
+2. ✅ **Race condition on completion** — atomic `update ... where completed_at is null returning id` with `ENROLLMENT_ALREADY_COMPLETED` thrown on empty result.
+3. ✅ **Phase CHECK mismatch** — added migration 0006 widening both response tables.
+
+Lower-severity findings logged but not addressed in this session: partial-failure between long+wide inserts (no transaction), unused `?notice=` query param in `/app`, sub-select scan in org_admin RLS policy at scale. None blocking.
+
+**Phase F — end-to-end test (browser, real enrollment):**
+- Magic-link email round trip blocked again by Gmail prefetch consuming the OTP token (same Day 3 issue). Routed around with a temporary `/dev/login-as` route (NODE_ENV-gated, localhost-only) that mints a session via admin SDK + `verifyOtp(token_hash)`. Route deleted after test.
+- Signed in as `dannygreer+s1@gmail.com` → landed on `/app` → saw the active-threat enrollment under Assigned → clicked Start → completed all 6 screens → submission succeeded.
+- DB verification:
+  - `enrollments.completed_at` = `2026-05-09T21:18:11.906+00:00` ✅
+  - 6 rows in `responses_long` (one per decision), all with correct `enrollment_id` + `student_id` (= session user id) ✅
+  - 1 row in `responses_wide` with branch_path `C-D-C-A-B-C` and `total_time` 22161ms ✅
+  - RTs: 1433ms–5745ms range, all plausible client-side captures ✅
+  - `response_category` is null because `response_tags` for the active-threat scenario aren't populated yet (content gap, already in `needs_doctor.md`).
+
+**Day 5 plan (per `MVS_Project_Plan.md`):**
+- Build `src/components/quiz/McRunner.tsx` mirroring the doctrine-locked event pattern — single question per screen, client-side RT, no back button, one `responses_long` row per answer.
+- `0007_multi_choice.sql`: `mc_questions` + `mc_options` tables.
+- Seed the 50-question Test Bank (with `[NEEDS_DOCTOR]` placeholders for `is_correct` until the doctor delivers the answer key).
+- Update `/app/take/[id]` to dispatch by `assessment.kind`: scenario → existing Quiz, multi_choice → McRunner.
+- Admin response views grouped by assessment kind.
+
+**Cleanup queued for the merge to main:**
+- Move legacy admin env vars (`ADMIN_USERNAME`, `ADMIN_PASSWORD`, `SESSION_SECRET`) off Vercel. Already off `.env.local` (Day 2).
+- Resend SMTP swap (was Day 7; recommend before Day 6 because invite-link UX is currently broken on Gmail).

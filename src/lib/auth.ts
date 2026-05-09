@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 
 // Returns the authenticated user + role if super_admin, otherwise null.
 // Use this from server actions and route handlers to guard admin-only paths.
@@ -24,5 +25,50 @@ export async function getSuperAdmin() {
 export async function requireSuperAdmin() {
   const result = await getSuperAdmin();
   if (!result) throw new Error('Unauthorized');
+  return result;
+}
+
+// Returns the authenticated user + their profile (role + name), or null if
+// no session. Use for student-portal entry points.
+export async function getCurrentProfile() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, full_name, org_id')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile) return null;
+  return {
+    user,
+    profile: {
+      role: profile.role as 'super_admin' | 'org_admin' | 'student',
+      full_name: profile.full_name as string | null,
+      org_id: profile.org_id as string | null,
+    },
+  };
+}
+
+// Server helper for /app routes. Redirects:
+//   - no session → /auth/login?next=<current path>
+//   - super_admin → /mvs/admin (their portal)
+//   - org_admin → /org (placeholder until Day 6)
+// Returns the user + profile when role === 'student'.
+export async function requireStudent(currentPath: string = '/app') {
+  const result = await getCurrentProfile();
+  if (!result) {
+    redirect(`/auth/login?next=${encodeURIComponent(currentPath)}`);
+  }
+  if (result.profile.role === 'super_admin') {
+    redirect('/mvs/admin');
+  }
+  if (result.profile.role === 'org_admin') {
+    redirect('/org');
+  }
   return result;
 }

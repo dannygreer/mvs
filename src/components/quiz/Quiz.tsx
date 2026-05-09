@@ -11,14 +11,34 @@ type Step = 'title' | 'reading' | 'answering' | 'results';
 
 interface QuizProps {
   scenario: Scenario | null;
+  // Day 4 — enrollment context (set when invoked from /app/take/[id]).
+  // Presence of `enrollmentId` causes the title screen to be skipped and
+  // identity to be prefilled from the authenticated session.
+  enrollmentId?: string;
+  studentId?: string;
+  prefillFirstName?: string;
+  prefillLastName?: string;
+  prefillPhase?: Phase;
 }
 
-export default function Quiz({ scenario }: QuizProps) {
-  const [step, setStep] = useState<Step>('title');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [phase, setPhase] = useState<Phase>('pre');
-  const [currentScreenId, setCurrentScreenId] = useState('');
+export default function Quiz({
+  scenario,
+  enrollmentId,
+  studentId,
+  prefillFirstName,
+  prefillLastName,
+  prefillPhase,
+}: QuizProps) {
+  const isEnrolled = !!enrollmentId;
+  const [step, setStep] = useState<Step>(
+    isEnrolled && scenario ? 'reading' : 'title'
+  );
+  const [firstName, setFirstName] = useState(prefillFirstName ?? '');
+  const [lastName, setLastName] = useState(prefillLastName ?? '');
+  const [phase, setPhase] = useState<Phase>(prefillPhase ?? 'pre');
+  const [currentScreenId, setCurrentScreenId] = useState(
+    isEnrolled && scenario ? scenario.entryScreenId : ''
+  );
   const [branchPath, setBranchPath] = useState('');
   const [responses, setResponses] = useState<ScreenResponse[]>([]);
   const [screenIndex, setScreenIndex] = useState(0);
@@ -111,6 +131,8 @@ export default function Quiz({ scenario }: QuizProps) {
             branchPath: newPath,
             responses: newResponses,
             totalTime,
+            enrollmentId,
+            studentId,
           });
         } catch (e) {
           console.error('Failed to submit assessment:', e);
@@ -127,6 +149,8 @@ export default function Quiz({ scenario }: QuizProps) {
       firstName,
       lastName,
       phase,
+      enrollmentId,
+      studentId,
     ],
   );
 

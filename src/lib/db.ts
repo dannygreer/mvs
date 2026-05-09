@@ -19,22 +19,14 @@ function getClient() {
 // SCENARIO LOADING
 // ============================================================
 
-export async function getActiveScenario(): Promise<Scenario | null> {
-  const client = getClient();
-
-  const { data: scenario, error: sErr } = await client
-    .from('scenarios')
-    .select('*')
-    .eq('is_active', true)
-    .limit(1)
-    .single();
-
-  if (sErr || !scenario) return null;
-
+async function loadScenarioFromRow(
+  client: ReturnType<typeof getClient>,
+  scenario: Record<string, unknown>
+): Promise<Scenario | null> {
   const { data: screens, error: scrErr } = await client
     .from('scenario_screens')
     .select('*')
-    .eq('scenario_fk', scenario.id)
+    .eq('scenario_fk', scenario.id as string)
     .order('sort_order');
 
   if (scrErr || !screens || screens.length === 0) return null;
@@ -79,7 +71,30 @@ export async function getActiveScenario(): Promise<Scenario | null> {
     title: scenario.title as string,
     entryScreenId: scenario.entry_screen_id as string,
     screens: screenMap,
-  };
+  } as Scenario;
+}
+
+export async function getScenarioById(id: string): Promise<Scenario | null> {
+  const client = getClient();
+  const { data, error } = await client
+    .from('scenarios')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (error || !data) return null;
+  return loadScenarioFromRow(client, data as Record<string, unknown>);
+}
+
+export async function getActiveScenario(): Promise<Scenario | null> {
+  const client = getClient();
+  const { data, error } = await client
+    .from('scenarios')
+    .select('*')
+    .eq('is_active', true)
+    .limit(1)
+    .single();
+  if (error || !data) return null;
+  return loadScenarioFromRow(client, data as Record<string, unknown>);
 }
 
 // ============================================================

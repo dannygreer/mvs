@@ -1,5 +1,6 @@
-// Phase selection
-export type Phase = 'pre' | 'post';
+// Phase selection. 'practice' was added in Day 4 for enrollments and is
+// stored in responses_long.phase for un-graded runs.
+export type Phase = 'pre' | 'post' | 'practice';
 export type ResponseCategory = 'controlled' | 'acceptable' | 'premature' | 'unsafe';
 
 // Scenario data types (loaded from DB)
@@ -55,6 +56,9 @@ export interface ResponseLongRow {
   rt_ms: number;
   timed_out: boolean;
   timestamp: string;
+  // Day 4: nullable links to enrollment + student. Existing rows have null.
+  enrollment_id: string | null;
+  student_id: string | null;
 }
 
 export interface ResponseWideRow {
@@ -80,6 +84,9 @@ export interface ResponseWideRow {
   q6_rt: number | null;
   total_time: number;
   completed_at: string;
+  // Day 4: nullable links to enrollment + student.
+  enrollment_id: string | null;
+  student_id: string | null;
 }
 
 export interface ResponseTag {
