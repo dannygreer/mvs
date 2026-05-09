@@ -22,10 +22,13 @@ This file is for blockers that require human action — credentials, account set
 - **When:** Day 8 (marketing page launch). Don't block dev work on this.
 - **Status:** awaiting setup
 
-### 4. Resend account + API key
-- Will be needed Day 7 (email automation).
-- **Action:** sign up at resend.com → verify a sending domain (probably `mentalvelocitysystem.com` once DNS is wired) → create API key → add `RESEND_API_KEY=...` and `RESEND_FROM_EMAIL=...` to `.env.local` and Vercel.
-- **Status:** awaiting setup
+### 4. Resend account + API key — **CONSIDER PULLING UP TO DAY 4 OR EARLIER**
+- Day 3 hit Supabase's default SMTP limits during live invite testing:
+  - Rate limit (~3-4 emails/hour) — only 1 of 3 test invites delivered.
+  - Invite-link "otp_expired" on click (Gmail/anti-phishing prefetch consumes the single-use token before user clicks).
+- Both go away once Supabase Auth uses a real SMTP provider (Resend) for invites.
+- **Action:** sign up at resend.com → verify a sending domain (use `mentalvelocitysystem.com` once DNS is wired, or a temporary subdomain on a domain you already own) → create API key → in Supabase dashboard → Project Settings → Auth → SMTP, point at Resend SMTP creds. (You don't need `RESEND_API_KEY` env vars in the app for *invites* — only for the transactional reminder emails Day 7 builds.)
+- **Status:** awaiting setup. Was Day 7; recommend before Day 4 cohort smoke tests.
 
 ### 5. Designate super_admin accounts
 - After auth refactor, manually run:

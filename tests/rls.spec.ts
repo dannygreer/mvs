@@ -221,3 +221,131 @@ describe('RLS — responses', () => {
     expect(data ?? []).toEqual([]);
   });
 });
+
+describe('RLS — assessments + enrollments (0004)', () => {
+  let testAssessmentId: string;
+  let enrollmentA: string;
+  let enrollmentB: string;
+
+  beforeAll(async () => {
+    // Reuse the backfilled active_threat_v1 assessment.
+    const { data: a, error: aErr } = await admin
+      .from('assessments')
+      .select('id')
+      .eq('code', 'active_threat_v1')
+      .single();
+    if (aErr || !a) throw aErr ?? new Error('active_threat_v1 missing');
+    testAssessmentId = a.id;
+
+    const { data: e1 } = await admin
+      .from('enrollments')
+      .insert({
+        student_id: studentA.id,
+        assessment_id: testAssessmentId,
+        phase: 'pre',
+      })
+      .select('id')
+      .single();
+    enrollmentA = e1!.id;
+
+    const { data: e2 } = await admin
+      .from('enrollments')
+      .insert({
+        student_id: studentB.id,
+        assessment_id: testAssessmentId,
+        phase: 'pre',
+      })
+      .select('id')
+      .single();
+    enrollmentB = e2!.id;
+  });
+
+  afterAll(async () => {
+    if (enrollmentA || enrollmentB) {
+      await admin
+        .from('enrollments')
+        .delete()
+        .in('id', [enrollmentA, enrollmentB].filter(Boolean));
+    }
+  });
+
+  it('super_admin can insert/update/delete assessments', async () => {
+    const c = await userClient(superAdmin.email);
+    const code = `mc_test_${Date.now()}`;
+    const { data: ins, error: insErr } = await c
+      .from('assessments')
+      .insert({ code, name: 'mc test', kind: 'multi_choice' })
+      .select('id')
+      .single();
+    expect(insErr).toBeNull();
+    expect(ins?.id).toBeTruthy();
+
+    const { error: upErr } = await c
+      .from('assessments')
+      .update({ name: 'renamed' })
+      .eq('id', ins!.id);
+    expect(upErr).toBeNull();
+
+    const { error: delErr } = await c
+      .from('assessments')
+      .delete()
+      .eq('id', ins!.id);
+    expect(delErr).toBeNull();
+  });
+
+  it('student can read active assessments', async () => {
+    const c = await userClient(studentA.email);
+    const { data, error } = await c
+      .from('assessments')
+      .select('id, code')
+      .eq('id', testAssessmentId);
+    expect(error).toBeNull();
+    expect(data?.length).toBe(1);
+  });
+
+  it('student reads own enrollment, not another students', async () => {
+    const c = await userClient(studentA.email);
+    const { data } = await c
+      .from('enrollments')
+      .select('id')
+      .in('id', [enrollmentA, enrollmentB]);
+    expect((data ?? []).map((r) => r.id)).toEqual([enrollmentA]);
+  });
+
+  it('student can mark own enrollment complete but cannot reassign it', async () => {
+    const c = await userClient(studentA.email);
+
+    // Allowed: set completed_at on own enrollment.
+    const completedAt = new Date().toISOString();
+    const { error: okErr } = await c
+      .from('enrollments')
+      .update({ completed_at: completedAt })
+      .eq('id', enrollmentA);
+    expect(okErr).toBeNull();
+
+    const { data: after1 } = await admin
+      .from('enrollments')
+      .select('completed_at, assessment_id, phase, student_id')
+      .eq('id', enrollmentA)
+      .single();
+    expect(after1?.completed_at).toBeTruthy();
+
+    // Blocked: try to swap student_id, assessment_id, phase.
+    await c
+      .from('enrollments')
+      .update({
+        student_id: studentB.id,
+        phase: 'post',
+      })
+      .eq('id', enrollmentA);
+
+    const { data: after2 } = await admin
+      .from('enrollments')
+      .select('student_id, phase, assessment_id')
+      .eq('id', enrollmentA)
+      .single();
+    expect(after2?.student_id).toBe(studentA.id);
+    expect(after2?.phase).toBe('pre');
+    expect(after2?.assessment_id).toBe(testAssessmentId);
+  });
+});

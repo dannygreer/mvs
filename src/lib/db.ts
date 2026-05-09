@@ -364,3 +364,145 @@ export async function deleteResult(id: number): Promise<void> {
     .eq('id', id);
   if (error) throw new Error(error.message);
 }
+
+// ============================================================
+// ORGS (Day 3)
+// ============================================================
+//
+// IMPORTANT: every helper below uses the service-role client and therefore
+// bypasses RLS entirely. Callers MUST enforce authorization themselves
+// (currently `requireSuperAdmin()` at every consumer page / server action).
+// Do NOT call these from user-scoped routes without an explicit role check.
+
+export type OrgRow = {
+  id: string;
+  name: string;
+  type: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  status: 'lead' | 'active' | 'completed' | 'churned';
+  deal_value_cents: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OrgListItem = OrgRow & { student_count: number };
+
+export type OrgRosterRow = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  role: 'super_admin' | 'org_admin' | 'student';
+  created_at: string;
+  completed_count: number;
+};
+
+export type OrgInput = {
+  name: string;
+  type: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  status: 'lead' | 'active' | 'completed' | 'churned';
+  deal_value_cents: number | null;
+  notes: string | null;
+};
+
+export async function listOrgs(): Promise<OrgListItem[]> {
+  const client = getClient();
+  const { data: orgs, error } = await client
+    .from('orgs')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(error.message);
+
+  const { data: profiles } = await client
+    .from('profiles')
+    .select('org_id')
+    .not('org_id', 'is', null);
+
+  const counts = new Map<string, number>();
+  for (const p of profiles ?? []) {
+    if (!p.org_id) continue;
+    counts.set(p.org_id, (counts.get(p.org_id) ?? 0) + 1);
+  }
+  return (orgs ?? []).map((o) => ({
+    ...o,
+    student_count: counts.get(o.id) ?? 0,
+  })) as OrgListItem[];
+}
+
+export async function getOrg(id: string): Promise<OrgRow | null> {
+  const { data, error } = await getClient()
+    .from('orgs')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (error) return null;
+  return data as OrgRow;
+}
+
+export async function insertOrg(input: OrgInput): Promise<OrgRow> {
+  const { data, error } = await getClient()
+    .from('orgs')
+    .insert(input)
+    .select('*')
+    .single();
+  if (error) throw new Error(error.message);
+  return data as OrgRow;
+}
+
+export async function updateOrgRow(id: string, input: Partial<OrgInput>): Promise<void> {
+  const { error } = await getClient().from('orgs').update(input).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+export async function getOrgRoster(orgId: string): Promise<OrgRosterRow[]> {
+  const client = getClient();
+  const { data: profiles, error } = await client
+    .from('profiles')
+    .select('id, full_name, role, created_at')
+    .eq('org_id', orgId)
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  if (!profiles || profiles.length === 0) return [];
+
+  // Email comes from auth.users — fetch the page that contains our profile ids.
+  // For v1 we paginate through up to 1000 users (worst case 20 pages of 50).
+  // Day 4+ should switch to a SQL RPC or a materialized email column.
+  const ids = new Set(profiles.map((p) => p.id));
+  const emailById = new Map<string, string | null>();
+  let page = 1;
+  while (emailById.size < ids.size && page <= 20) {
+    const { data: list } = await client.auth.admin.listUsers({ page, perPage: 50 });
+    if (!list || list.users.length === 0) break;
+    for (const u of list.users) {
+      if (ids.has(u.id)) emailById.set(u.id, u.email ?? null);
+    }
+    if (list.users.length < 50) break;
+    page++;
+  }
+
+  const { data: enrollments } = await client
+    .from('enrollments')
+    .select('student_id, completed_at')
+    .in('student_id', Array.from(ids));
+  const completedById = new Map<string, number>();
+  for (const e of enrollments ?? []) {
+    if (e.completed_at) {
+      completedById.set(
+        e.student_id,
+        (completedById.get(e.student_id) ?? 0) + 1
+      );
+    }
+  }
+
+  return profiles.map((p) => ({
+    id: p.id,
+    full_name: p.full_name,
+    email: emailById.get(p.id) ?? null,
+    role: p.role as OrgRosterRow['role'],
+    created_at: p.created_at,
+    completed_count: completedById.get(p.id) ?? 0,
+  }));
+}

@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import {
   getAllResponsesWide,
   getAllResponsesLong,
@@ -50,6 +51,12 @@ export default async function AdminDashboardPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <Link
+              href="/mvs/admin/orgs"
+              className="px-4 py-2 border border-zinc-300 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-100 transition-colors"
+            >
+              Orgs
+            </Link>
             <a
               href="/api/admin/export-csv?format=wide"
               className="px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"

@@ -121,3 +121,48 @@ Append-only log of autonomous Claude Code sessions. Newest entries at the bottom
 - Bulk-invite students (paste `name,email`). Creates profile + sends Supabase Auth magic-link invite.
 
 **Vercel cleanup (post-merge):** remove `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `SESSION_SECRET` from all 3 envs in the Vercel dashboard.
+
+---
+
+## 2026-05-08 — Day 3: orgs admin UI + bulk-invite students
+
+**Branch:** `feat/orgs-and-invite` (cut from `feat/rls-and-admin-cutover` because Day 2 isn't yet merged to main).
+
+**Phase B — migration 0004:**
+- `supabase/migrations/0004_assessments_and_enrollments.sql` applied. Adds `assessments` (umbrella for scenario + multi-choice) and `enrollments` (student × assessment × phase). RLS + indexes per spec. Active-threat scenario backfilled as `assessments.code = 'active_threat_v1'`.
+- **Recursion gotcha:** the spec's `student complete own enrollment` policy uses a WITH CHECK subquery against the same row to lock immutable fields (student_id/assessment_id/phase) — Postgres errored "infinite recursion in policy for relation enrollments". Fixed in-place by replacing the WITH CHECK subquery with a `BEFORE UPDATE` trigger (`lock_enrollment_immutable_fields`) that pins those columns for non-super_admin updates. Trigger is SECURITY DEFINER + fixed `search_path = public`.
+- 4 new vitest cases added; full suite now 18/18 green.
+
+**Phase C — orgs admin UI:**
+- `/mvs/admin/orgs` (list with student count, status pill, deal value). `/mvs/admin/orgs/new` (create form). `/mvs/admin/orgs/[id]` (detail with editable CRM card + read-only roster joining `auth.users` for email + completed-enrollment count).
+- New helpers in `src/lib/db.ts`: `listOrgs`, `getOrg`, `insertOrg`, `updateOrgRow`, `getOrgRoster`, plus `OrgRow`/`OrgListItem`/`OrgRosterRow`/`OrgInput` types. JSDoc warning that all helpers use service role and bypass RLS — callers must enforce authz.
+- Server actions `createOrg` / `updateOrg` in `src/actions/orgs.ts`, both gated by `requireSuperAdmin()`.
+- New shared `OrgForm` component + Orgs nav link wired into the admin header.
+
+**Phase D — bulk invite + /app placeholder:**
+- `/mvs/admin/orgs/[id]/invite` page with textarea + per-row result table (client component using `useActionState`).
+- `inviteStudents(prev, formData)` server action: parses `First,Last,email` lines, validates email, calls `auth.admin.inviteUserByEmail` with `redirectTo = ${APP_URL}/auth/callback?next=/app`, defensively `upsert`s `profiles` (handles trigger lag for new users + existing users), and **does not silently overwrite** when an existing user already belongs to a different org — surfaces as `conflict_other_org`.
+- Hard cap of 200 rows per submission (Vercel function timeout headroom; subagent flagged 5000-row pasted scenario as risk).
+- `/app` placeholder route ships now (Day 4 will populate it). Auth-gated; renders only the user's own email.
+
+**Phase E — subagent audit:** No exploitable issues. Action items addressed pre-commit:
+1. ✅ 200-row cap on `inviteStudents` (was unbounded → would hang on large pastes).
+2. ✅ JSDoc warning on `db.ts` orgs helpers about service-role + caller-side authz requirement.
+
+Deferred (cosmetic / future): TOCTOU window in conflict check (single-admin model OK), faster email→user_id lookup (Supabase admin SDK has no direct endpoint), re-submit re-invites no idempotency guard.
+
+**Live test (browser):**
+- Created "Day 3 Test Org" (id `bdacf849-...`) via SQL.
+- Invited `dannygreer+s1/s2/s3@gmail.com` via the UI:
+  - s1 → ✅ invited (email arrived, profile.org_id linked, `email_confirmed_at` set after click).
+  - s2/s3 → ❌ "email rate limit exceeded" — Supabase default SMTP caps ~3-4 emails/hour. **Not a code bug; this is the Day 7 Resend migration's problem.** Logged.
+- Clicked invite link → landed at `/auth/login?error=missing_code#error=access_denied&error_code=otp_expired`. The token WAS verified (DB shows email_confirmed_at populated 38s after invite) — the "expired" likely came from a second hit (Gmail prefetch / refresh) consuming the already-used token. Resend (Day 7) fixes this; not a code bug.
+- Conflict path: moved s1 to a second test org via SQL, asked user to invite s1 to original org. Expected `conflict_other_org` amber status (no overwrite). Result pending user verification.
+
+**Day 4 plan (per `MVS_Project_Plan.md`):**
+- Light up `/app` with the student's `enrollments` list (button per phase to launch the `Quiz` runner).
+- On completion, write `enrollments.completed_at` AND link `responses_long`/`responses_wide` rows to `enrollment_id` + `student_id` (requires `0005_link_responses_to_enrollments.sql`).
+- `submitAssessment` server action gets a real auth check (currently anonymous-by-design for the legacy quiz).
+
+**Open items now blocking polish, not blocking dev:**
+- Default Supabase SMTP rate limit + invite-link prefetch issue. **Recommend pulling Day 7 (Resend) up before Day 6** so the first cohort's invites are reliable.
