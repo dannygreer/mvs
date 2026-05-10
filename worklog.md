@@ -378,3 +378,60 @@ Plus dead code cleanup: removed the `alreadySentCount` prop that was always 0.
 **Open items for next session:**
 - **Resend domain verification** is now the literal blocker for v1 cohort go-live. Without it, no real student can be emailed.
 - 5 unmerged branches (Days 2-7). Coordinate merge to main soon.
+
+---
+
+## 2026-05-09 — Day 8: marketing landing page + leads capture + Vercel domain wiring
+
+**Branch:** `feat/marketing-and-domain` (cut from `feat/transactional-invites`).
+
+**Shipped:**
+
+### Migration 0011 — leads table
+- `0011_leads.sql` (re-numbered from prompt's 0008 because 0007/0008 are taken). `leads` table with name/email/org/org_type/message/status/source/created_at. Status enum + check constraint.
+- Split-policy RLS: `super_admin all on leads` (full CRUD) + `anyone insert lead` (`for insert with check (true)`). No SELECT/UPDATE/DELETE policy for non-super_admins → anon and authenticated non-admins can only insert. Verified by vitest.
+
+### Legacy quiz move
+- `src/app/page.tsx` → `src/app/quiz/page.tsx`. No code changes (file move + a re-export). `grep` confirmed no internal links to the old root. The legacy walk-in path stays intentionally unlinked from the marketing page; deprecated by the Day 5b token-URL flow but kept reachable.
+
+### Marketing page at `/`
+- Dark gradient + radar SVG backdrop (`RadarBackdrop.tsx`), metallic-silver `MEASURE. UNDERSTAND. GOVERN.` headline using Tailwind `bg-clip-text`, cyan accents.
+- 5 sections within the budget: hero, "What it is" (this is not a quiz), "Who it's for" (3-card row with inline SVG icons), "The doctor" (with visible amber `[NEEDS_DOCTOR]` placeholders), Contact form. Thin footer with green-dot "secure" indicator.
+- `ContactForm.tsx` (client) using `useActionState`. Success state replaces form with "We'll be in touch."
+- Anchor `#contact` from hero CTA to the form.
+- Sign-in link top-right routes to `/auth/login` (admin path; doctor + org_admins).
+
+### Lead capture pipeline
+- `src/actions/leads.ts`: `submitLead` (anonymous, validates inputs with length caps + email regex + enum check; honeypot field added pre-commit), `updateLeadStatus` (super_admin gated, enum-validated).
+- `/mvs/admin/leads`: server component, super_admin only. Table with name/email/org/type/truncated message/status dropdown (auto-submits onChange)/timestamp. Status badge color-coded.
+- "Leads" link added to admin nav.
+
+### Vercel domains
+- `mentalvelocitysystem.com` and `www.mentalvelocitysystem.com` added to project `mvs` via `vercel domains add`.
+- DNS still on Wix nameservers. Two paths logged in `needs_human.md` #3:
+  - **Path A (recommended):** keep Wix DNS, add A records (`@` and `www` → `76.76.21.21`) at Wix.
+  - **Path B:** swap nameservers to Vercel's (`ns1.vercel-dns.com`, `ns2.vercel-dns.com`) — caveat that any existing Wix DNS records (email MX, etc.) would need re-creation in Vercel DNS.
+- Resend domain verification steps (item #4) updated with concrete instructions for `mail.mentalvelocitysystem.com` subdomain pattern, including the `RESEND_FROM_EMAIL` env var swap once verified.
+
+### Subagent audit (clean — 4 items, 3 fixed pre-commit)
+1. ✅ **Body-text contrast** at tagline + footer used `text-zinc-500` (4.0:1 on zinc-950, fails WCAG AA at body size). Bumped to `text-zinc-400` (5.7:1, passes).
+2. ✅ **Weak focus indicators** on form fields and CTA button. Added `focus:ring-2 focus:ring-cyan-400/40` on inputs + `focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950` on the hero CTA.
+3. ✅ **No abuse protection on submitLead.** Added a hidden honeypot field (`company_homepage`) — bots fill all visible inputs, real users never see it. Server returns `ok` silently when populated, skips the DB insert.
+4. ⚠️ **No RLS test for authenticated non-super_admin SELECT block on leads.** Coverage gap, not a bug — the policy logic is sound. Deferred.
+
+Plus low-severity from agent: legacy `/quiz` is unreachable from `/` (intentional, deprecated by token URLs), `text-transparent` on metallic headline blank in browsers without bg-clip-text support (~98% modern coverage, accept).
+
+### Live verification
+- Built clean (28/28 vitest green; npm run build green post-fixes).
+- Smoke: `GET /` → 200, `GET /quiz` → 200, `GET /mvs/admin/leads` (anon) → 307 to login. ✓
+
+**Day 9 plan (per `MVS_Project_Plan.md`):**
+- Seed the 25 doctrine-locked scenarios from `Scenario_Bank_Doctrine_Locked.docx` IF the doctor has delivered options + answers + transitions. Currently `needs_doctor.md` flags this as still-blocked.
+- IF NOT delivered: pull cohort prep forward (first-real-org setup, runbook for doctor, Sentry).
+
+**Open items:**
+- **DNS records at Wix** (or nameserver swap) — blocks `mentalvelocitysystem.com` from resolving.
+- **Resend domain verification** — blocks any non-Danny email recipient.
+- **6 unmerged branches** (Days 2-8). Coordinate merge to main before deploy.
+- Doctor placeholders on marketing page: headshot, full bio, final hero copy. Tracked in `docs/needs_doctor.md`.
+- Lead form CAPTCHA (Cloudflare Turnstile) for stronger abuse protection if honeypot proves insufficient.

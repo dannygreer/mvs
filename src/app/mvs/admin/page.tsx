@@ -57,6 +57,12 @@ export default async function AdminDashboardPage() {
             >
               Orgs
             </Link>
+            <Link
+              href="/mvs/admin/leads"
+              className="px-4 py-2 border border-zinc-300 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-100 transition-colors"
+            >
+              Leads
+            </Link>
             <a
               href="/api/admin/export-csv?format=wide"
               className="px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"

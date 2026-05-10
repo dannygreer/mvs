@@ -16,11 +16,34 @@ This file is for blockers that require human action — credentials, account set
 - Supabase dashboard → Authentication → URL Configuration → Site URL = `https://mentalvelocitysystem.com` (and `http://localhost:3000` for dev).
 - **Status:** awaiting setup
 
-### 3. Domain DNS — mentalvelocitysystem.com
-- Domain is purchased but not pointed at Vercel.
-- **Action:** Vercel project → Settings → Domains → add `mentalvelocitysystem.com` and `www.mentalvelocitysystem.com`. Vercel will give you DNS records (A or CNAME). Add those at the registrar.
-- **When:** Day 8 (marketing page launch). Don't block dev work on this.
-- **Status:** awaiting setup
+### 3. Domain DNS — mentalvelocitysystem.com — **Vercel side done; DNS records pending at registrar (Wix)**
+
+- ✅ Both `mentalvelocitysystem.com` and `www.mentalvelocitysystem.com` added to the Vercel project `mvs` on Day 8.
+- ⏳ Domain currently uses Wix nameservers (`ns12.wixdns.net`, `ns13.wixdns.net`). Two paths to finish:
+
+**Path A (recommended — keep Wix nameservers, add A records at Wix):**
+1. Log into Wix → Domains → mentalvelocitysystem.com → Advanced → Edit DNS records.
+2. Add an `A` record:
+   - Host: `@` (or leave blank for apex)
+   - Value: `76.76.21.21`
+   - TTL: default
+3. Add a second `A` record:
+   - Host: `www`
+   - Value: `76.76.21.21`
+   - TTL: default
+4. Save. Propagation: usually <1 hour, sometimes up to 48.
+5. Vercel will auto-issue a TLS cert once verification passes; you'll get an email.
+
+**Path B (Vercel-managed nameservers — only if you don't host other Wix DNS records on this domain):**
+1. Wix → Domains → Advanced → change nameservers to:
+   - `ns1.vercel-dns.com`
+   - `ns2.vercel-dns.com`
+2. Wait for propagation. Vercel handles all DNS records from there.
+3. **Caveat:** any non-Vercel records (email MX, etc.) you have at Wix today will stop resolving until you re-create them in Vercel DNS.
+
+After DNS propagates:
+- Update Supabase Auth Site URL: https://supabase.com/dashboard/project/pguqugmqyrjcwzkdzpel/auth/url-configuration → set Site URL to `https://mentalvelocitysystem.com` and add `https://www.mentalvelocitysystem.com` to additional redirect URLs.
+- Verify `https://mentalvelocitysystem.com` loads the marketing page with a valid TLS cert.
 
 ### 4. Resend account + SMTP swap — Day 5 (in progress: sandbox first, real domain backlog)
 - **Phase 1 (Day 5, in progress):** Use Resend onboarding sandbox to unblock dev testing.
@@ -31,11 +54,16 @@ This file is for blockers that require human action — credentials, account set
     3. Resend dashboard → Settings → SMTP → grab the SMTP credentials (host: smtp.resend.com, port: 587, user: "resend", pass: <API key>).
     4. Supabase dashboard → https://supabase.com/dashboard/project/pguqugmqyrjcwzkdzpel/auth/providers → scroll to "SMTP Settings" → enable custom SMTP → paste Resend creds. Set "Sender email" to `onboarding@resend.dev` and "Sender name" to "MVS".
     5. Save. Test by hitting `/auth/login` with dannygreer+test@gmail.com — magic link should arrive within seconds without rate-limit errors.
-- **Phase 2 (BACKLOG, before first real cohort):** Verify a real sending domain.
-  - Pick `mentalvelocitysystem.com` (root) or `mail.mentalvelocitysystem.com` (subdomain — recommended; keeps marketing/transactional separate).
-  - Resend dashboard → Domains → Add domain → Resend gives DNS records (SPF, DKIM, optional DMARC) → add at registrar.
-  - Once verified (~15 min after DNS propagation), update Supabase SMTP "Sender email" from `onboarding@resend.dev` to `noreply@mail.mentalvelocitysystem.com` (or chosen address).
-  - **Hard blocker for first cohort.** Don't invite any real student until Phase 2 is done.
+- **Phase 2 (BLOCKER for first real cohort):** Verify a real sending domain.
+  - Recommend `mail.mentalvelocitysystem.com` (subdomain keeps marketing/transactional separate, isolates DNS impact).
+  - Steps:
+    1. Resend dashboard → Domains → Add domain → enter `mail.mentalvelocitysystem.com`.
+    2. Resend will display DNS records to add (typically: 1 SPF TXT, 1 DKIM CNAME or TXT, optional DMARC TXT, optional MX for bounce handling).
+    3. Add those records at Wix (same DNS provider as the apex domain — see item #3 above).
+    4. Wait for Resend's verification check (auto, runs every few minutes).
+    5. Update Supabase SMTP "Sender email" from `onboarding@resend.dev` to `noreply@mail.mentalvelocitysystem.com`.
+    6. Update `RESEND_FROM_EMAIL` env var in `.env.local` and Vercel to match (e.g., `MVS <noreply@mail.mentalvelocitysystem.com>`). The `src/lib/email.ts` helper reads this; default is `onboarding@resend.dev`.
+  - **Hard blocker for first cohort.** Don't invite any real student until done. Sandbox sender (`onboarding@resend.dev`) only delivers to dannygreer@gmail.com.
 
 ### 5. Designate super_admin accounts
 - After auth refactor, manually run:

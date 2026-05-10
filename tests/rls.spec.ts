@@ -704,6 +704,51 @@ describe('RLS — multi-choice (0007)', () => {
     }
   });
 
+  it('leads: anon can insert; anon CANNOT select; super_admin sees all', async () => {
+    const anon = createClient(SUPABASE_URL, ANON_KEY, {
+      auth: { persistSession: false },
+    });
+    const tag = `rls_anon_${Date.now()}`;
+
+    // Anon insert allowed. Cannot use RETURNING (.select()) because anon
+    // has no select policy — INSERT ... RETURNING applies RLS to the
+    // returned row.
+    const { error: insErr } = await anon.from('leads').insert({
+      name: tag,
+      email: `${tag}@example.com`,
+      message: 'test message',
+    });
+    expect(insErr).toBeNull();
+
+    // Locate the inserted row via service role for cleanup later.
+    const { data: located } = await admin
+      .from('leads')
+      .select('id')
+      .eq('name', tag)
+      .single();
+    const id = located!.id;
+
+    try {
+      // Anon SELECT blocked — empty array, no error.
+      const { data: anonSelect } = await anon
+        .from('leads')
+        .select('id')
+        .eq('id', id);
+      expect(anonSelect ?? []).toEqual([]);
+
+      // super_admin SELECT works.
+      const sa = await userClient(superAdmin.email);
+      const { data: saSelect, error: saErr } = await sa
+        .from('leads')
+        .select('id')
+        .eq('id', id);
+      expect(saErr).toBeNull();
+      expect((saSelect ?? []).length).toBe(1);
+    } finally {
+      await admin.from('leads').delete().eq('id', id);
+    }
+  });
+
   it('loadMcQuestionsForStudent never returns is_correct or response_category', async () => {
     // Direct check on the loader contract — even if the underlying RLS lets
     // students read those columns via raw supabase-js, our loader must strip
