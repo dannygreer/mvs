@@ -22,13 +22,20 @@ This file is for blockers that require human action — credentials, account set
 - **When:** Day 8 (marketing page launch). Don't block dev work on this.
 - **Status:** awaiting setup
 
-### 4. Resend account + API key — **CONSIDER PULLING UP TO DAY 4 OR EARLIER**
-- Day 3 hit Supabase's default SMTP limits during live invite testing:
-  - Rate limit (~3-4 emails/hour) — only 1 of 3 test invites delivered.
-  - Invite-link "otp_expired" on click (Gmail/anti-phishing prefetch consumes the single-use token before user clicks).
-- Both go away once Supabase Auth uses a real SMTP provider (Resend) for invites.
-- **Action:** sign up at resend.com → verify a sending domain (use `mentalvelocitysystem.com` once DNS is wired, or a temporary subdomain on a domain you already own) → create API key → in Supabase dashboard → Project Settings → Auth → SMTP, point at Resend SMTP creds. (You don't need `RESEND_API_KEY` env vars in the app for *invites* — only for the transactional reminder emails Day 7 builds.)
-- **Status:** awaiting setup. Was Day 7; recommend before Day 4 cohort smoke tests.
+### 4. Resend account + SMTP swap — Day 5 (in progress: sandbox first, real domain backlog)
+- **Phase 1 (Day 5, in progress):** Use Resend onboarding sandbox to unblock dev testing.
+  - Restriction: sandbox only sends to the email tied to your Resend account (i.e. dannygreer@gmail.com and its plus-aliases). Sufficient for `dannygreer+s*@gmail.com` test students — INSUFFICIENT for real cohort.
+  - Steps:
+    1. Sign up at https://resend.com (use Google sign-in for speed).
+    2. Resend dashboard → API Keys → Create → name "supabase-auth", scope "Sending access".
+    3. Resend dashboard → Settings → SMTP → grab the SMTP credentials (host: smtp.resend.com, port: 587, user: "resend", pass: <API key>).
+    4. Supabase dashboard → https://supabase.com/dashboard/project/pguqugmqyrjcwzkdzpel/auth/providers → scroll to "SMTP Settings" → enable custom SMTP → paste Resend creds. Set "Sender email" to `onboarding@resend.dev` and "Sender name" to "MVS".
+    5. Save. Test by hitting `/auth/login` with dannygreer+test@gmail.com — magic link should arrive within seconds without rate-limit errors.
+- **Phase 2 (BACKLOG, before first real cohort):** Verify a real sending domain.
+  - Pick `mentalvelocitysystem.com` (root) or `mail.mentalvelocitysystem.com` (subdomain — recommended; keeps marketing/transactional separate).
+  - Resend dashboard → Domains → Add domain → Resend gives DNS records (SPF, DKIM, optional DMARC) → add at registrar.
+  - Once verified (~15 min after DNS propagation), update Supabase SMTP "Sender email" from `onboarding@resend.dev` to `noreply@mail.mentalvelocitysystem.com` (or chosen address).
+  - **Hard blocker for first cohort.** Don't invite any real student until Phase 2 is done.
 
 ### 5. Designate super_admin accounts
 - After auth refactor, manually run:

@@ -3,6 +3,14 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
+// Magic-link sign-in for ADMINS only (super_admin, org_admin).
+// Students don't sign in — they receive a /take/[token] URL from their
+// facilitator and run the assessment without any authentication.
+//
+// This is a thin form. The /auth/callback PKCE handler from Day 1 still
+// processes the click. Most reliable when used from the same browser session
+// the user initiated the request from (Gmail prefetch can consume the token
+// otherwise — known platform quirk).
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>(
@@ -36,16 +44,18 @@ export default function LoginPage() {
     <div className="flex flex-col items-center justify-center flex-1 min-h-screen bg-zinc-50 px-6">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-zinc-900">Sign in to MVS</h1>
-          <p className="text-zinc-500 mt-1">We&apos;ll email you a magic link.</p>
+          <h1 className="text-2xl font-bold text-zinc-900">Admin sign-in</h1>
+          <p className="text-zinc-500 mt-1 text-sm">
+            We&apos;ll email you a magic link.
+          </p>
         </div>
 
         {status === 'sent' ? (
           <div className="bg-white border border-zinc-200 rounded-xl p-6 text-center space-y-2">
             <p className="text-zinc-900 font-medium">Check your email</p>
             <p className="text-sm text-zinc-500">
-              We sent a sign-in link to <strong>{email}</strong>. Open it on
-              this device.
+              We sent a sign-in link to <strong>{email}</strong>. Open it in
+              this browser to complete sign-in.
             </p>
           </div>
         ) : (

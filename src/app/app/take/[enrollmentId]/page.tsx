@@ -1,8 +1,9 @@
 import { redirect, notFound } from 'next/navigation';
 import { requireStudent } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
-import { getScenarioById } from '@/lib/db';
+import { getScenarioById, loadMcQuestionsForStudent } from '@/lib/db';
 import Quiz from '@/components/quiz/Quiz';
+import McQuiz from '@/components/quiz/McQuiz';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +13,7 @@ type EnrollmentDetail = {
   phase: 'pre' | 'post' | 'practice';
   completed_at: string | null;
   assessments: {
+    id: string;
     code: string;
     name: string;
     kind: 'scenario' | 'multi_choice';
@@ -33,7 +35,7 @@ export default async function TakeAssessmentPage({
   const { data, error } = await supabase
     .from('enrollments')
     .select(
-      'id, student_id, phase, completed_at, assessments(code, name, kind, scenario_fk)'
+      'id, student_id, phase, completed_at, assessments(id, code, name, kind, scenario_fk)'
     )
     .eq('id', enrollmentId)
     .single();
@@ -51,35 +53,49 @@ export default async function TakeAssessmentPage({
   const assessment = enrollment.assessments;
   if (!assessment) notFound();
 
+  const fullName = profile.full_name ?? '';
+  const [first, ...rest] = fullName.split(' ');
+  const last = rest.join(' ') || first || 'Student';
+  const participantId = `${(first || 'student').toLowerCase()}_${(last || 'na').toLowerCase()}_${Date.now()}`;
+
   if (assessment.kind === 'multi_choice') {
+    const questions = await loadMcQuestionsForStudent(assessment.id);
     return (
-      <div className="max-w-2xl mx-auto px-6 py-12 text-center">
-        <p className="text-zinc-700">
-          The multi-choice runner ships next. Check back soon.
-        </p>
-        <p className="text-xs text-zinc-400 mt-2">[NEEDS_DAY_5]</p>
+      <div className="flex flex-col flex-1 min-h-[80vh] bg-zinc-950">
+        <McQuiz
+          questions={questions}
+          enrollmentId={enrollment.id}
+          studentId={user.id}
+          phase={enrollment.phase}
+          assessmentCode={assessment.code}
+          participantId={participantId}
+        />
       </div>
     );
   }
 
-  if (!assessment.scenario_fk) notFound();
-  const scenario = await getScenarioById(assessment.scenario_fk);
-  if (!scenario) notFound();
+  if (assessment.kind === 'scenario') {
+    if (!assessment.scenario_fk) notFound();
+    const scenario = await getScenarioById(assessment.scenario_fk);
+    if (!scenario) notFound();
 
-  const fullName = profile.full_name ?? '';
-  const [first, ...rest] = fullName.split(' ');
-  const last = rest.join(' ') || first || 'Student';
+    return (
+      <div className="flex flex-col flex-1 min-h-[80vh] bg-white">
+        <Quiz
+          scenario={scenario}
+          enrollmentId={enrollment.id}
+          studentId={user.id}
+          prefillFirstName={first || 'Student'}
+          prefillLastName={last}
+          prefillPhase={enrollment.phase}
+        />
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col flex-1 min-h-[80vh] bg-white">
-      <Quiz
-        scenario={scenario}
-        enrollmentId={enrollment.id}
-        studentId={user.id}
-        prefillFirstName={first || 'Student'}
-        prefillLastName={last}
-        prefillPhase={enrollment.phase as 'pre' | 'post' | 'practice'}
-      />
+    <div className="max-w-2xl mx-auto px-6 py-12 text-center">
+      <p className="text-zinc-700">Unsupported assessment type.</p>
     </div>
   );
 }

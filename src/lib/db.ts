@@ -98,6 +98,59 @@ export async function getActiveScenario(): Promise<Scenario | null> {
 }
 
 // ============================================================
+// MULTI-CHOICE (Day 5)
+// ============================================================
+//
+// CRITICAL: loadMcQuestionsForStudent must NEVER select is_correct or
+// response_category. Both columns are present on mc_options for super_admin
+// authoring + scoring, but exposing them to the student client would leak
+// the answer key. The RLS policy "authenticated read mc_options" allows
+// reads (we depend on it for the student runner), so the application layer
+// is the gate. tests/rls.spec.ts asserts this loader's projection.
+
+import type { McQuestion } from '@/types';
+
+export async function loadMcQuestionsForStudent(
+  assessmentId: string
+): Promise<McQuestion[]> {
+  const client = getClient();
+  const { data: questions, error: qErr } = await client
+    .from('mc_questions')
+    .select('id, sequence, prompt, time_limit_seconds')
+    .eq('assessment_id', assessmentId)
+    .order('sequence');
+  if (qErr) throw new Error(qErr.message);
+  if (!questions || questions.length === 0) return [];
+
+  const qIds = questions.map((q) => q.id as string);
+  const { data: options, error: oErr } = await client
+    .from('mc_options')
+    .select('id, question_id, label, text')
+    .in('question_id', qIds)
+    .order('label');
+  if (oErr) throw new Error(oErr.message);
+
+  const byQuestion = new Map<string, McQuestion['options']>();
+  for (const o of options ?? []) {
+    const arr = byQuestion.get(o.question_id as string) ?? [];
+    arr.push({
+      id: o.id as string,
+      label: o.label as 'A' | 'B' | 'C' | 'D',
+      text: o.text as string,
+    });
+    byQuestion.set(o.question_id as string, arr);
+  }
+
+  return questions.map((q) => ({
+    id: q.id as string,
+    sequence: q.sequence as number,
+    prompt: q.prompt as string,
+    timeLimitSeconds: (q.time_limit_seconds as number | null) ?? null,
+    options: byQuestion.get(q.id as string) ?? [],
+  }));
+}
+
+// ============================================================
 // RESPONSE SUBMISSION
 // ============================================================
 
@@ -411,6 +464,14 @@ export type OrgRosterRow = {
   role: 'super_admin' | 'org_admin' | 'student';
   created_at: string;
   completed_count: number;
+  // Day 5b: per-enrollment take-URL tokens, paired with their phase + status.
+  enrollments: {
+    id: string;
+    phase: 'pre' | 'post' | 'practice';
+    secret_token: string;
+    completed_at: string | null;
+    assessment_code: string;
+  }[];
 };
 
 export type OrgInput = {
@@ -500,9 +561,12 @@ export async function getOrgRoster(orgId: string): Promise<OrgRosterRow[]> {
 
   const { data: enrollments } = await client
     .from('enrollments')
-    .select('student_id, completed_at')
+    .select(
+      'id, student_id, phase, secret_token, completed_at, assessments(code)'
+    )
     .in('student_id', Array.from(ids));
   const completedById = new Map<string, number>();
+  const enrollmentsById = new Map<string, OrgRosterRow['enrollments']>();
   for (const e of enrollments ?? []) {
     if (e.completed_at) {
       completedById.set(
@@ -510,6 +574,17 @@ export async function getOrgRoster(orgId: string): Promise<OrgRosterRow[]> {
         (completedById.get(e.student_id) ?? 0) + 1
       );
     }
+    const arr = enrollmentsById.get(e.student_id) ?? [];
+    arr.push({
+      id: e.id as string,
+      phase: e.phase as 'pre' | 'post' | 'practice',
+      secret_token: e.secret_token as string,
+      completed_at: (e.completed_at as string | null) ?? null,
+      assessment_code:
+        ((e as unknown as { assessments: { code: string } | null }).assessments
+          ?.code) ?? '',
+    });
+    enrollmentsById.set(e.student_id, arr);
   }
 
   return profiles.map((p) => ({
@@ -519,5 +594,6 @@ export async function getOrgRoster(orgId: string): Promise<OrgRosterRow[]> {
     role: p.role as OrgRosterRow['role'],
     created_at: p.created_at,
     completed_count: completedById.get(p.id) ?? 0,
+    enrollments: enrollmentsById.get(p.id) ?? [],
   }));
 }

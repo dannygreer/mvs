@@ -1,11 +1,21 @@
+import { headers } from 'next/headers';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireSuperAdmin } from '@/lib/auth';
 import { getOrg, getOrgRoster } from '@/lib/db';
 import { updateOrg } from '@/actions/orgs';
 import OrgForm from '@/components/admin/OrgForm';
+import EnrollmentLinks from '@/components/admin/EnrollmentLinks';
 
 export const dynamic = 'force-dynamic';
+
+async function getBaseUrl(): Promise<string> {
+  if (process.env.APP_URL) return process.env.APP_URL;
+  const h = await headers();
+  const host = h.get('host') ?? 'localhost:3000';
+  const proto = h.get('x-forwarded-proto') ?? 'http';
+  return `${proto}://${host}`;
+}
 
 export default async function OrgDetailPage({
   params,
@@ -18,6 +28,7 @@ export default async function OrgDetailPage({
   if (!org) notFound();
 
   const roster = await getOrgRoster(id);
+  const baseUrl = await getBaseUrl();
   const updateAction = updateOrg.bind(null, id);
 
   return (
@@ -75,7 +86,8 @@ export default async function OrgDetailPage({
                   <th className="text-left px-4 py-3 font-medium">Name</th>
                   <th className="text-left px-4 py-3 font-medium">Email</th>
                   <th className="text-left px-4 py-3 font-medium">Role</th>
-                  <th className="text-right px-4 py-3 font-medium">Completed</th>
+                  <th className="text-left px-4 py-3 font-medium">Take links</th>
+                  <th className="text-right px-4 py-3 font-medium">Done</th>
                   <th className="text-left px-4 py-3 font-medium">Joined</th>
                 </tr>
               </thead>
@@ -90,6 +102,16 @@ export default async function OrgDetailPage({
                     </td>
                     <td className="px-4 py-3 text-zinc-600">{m.email ?? '—'}</td>
                     <td className="px-4 py-3 text-zinc-600">{m.role}</td>
+                    <td className="px-4 py-3">
+                      <EnrollmentLinks
+                        links={m.enrollments.map((e) => ({
+                          id: e.id,
+                          phase: e.phase,
+                          completed_at: e.completed_at,
+                          url: `${baseUrl}/take/${e.secret_token}`,
+                        }))}
+                      />
+                    </td>
                     <td className="px-4 py-3 text-right text-zinc-600 tabular-nums">
                       {m.completed_count}
                     </td>

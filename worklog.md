@@ -218,3 +218,60 @@ Lower-severity findings logged but not addressed in this session: partial-failur
 **Cleanup queued for the merge to main:**
 - Move legacy admin env vars (`ADMIN_USERNAME`, `ADMIN_PASSWORD`, `SESSION_SECRET`) off Vercel. Already off `.env.local` (Day 2).
 - Resend SMTP swap (was Day 7; recommend before Day 6 because invite-link UX is currently broken on Gmail).
+
+---
+
+## 2026-05-09 — Day 5: multi-choice runner + Test Bank + token-URL student auth pivot
+
+**Branch:** `feat/multi-choice-runner` (cut from `feat/student-portal`).
+
+**What shipped:**
+
+### Multi-choice (per Day 5 prompt)
+- `0007_multi_choice_test.sql` applied (re-numbered from 0006 because that slot was taken by Day 4's widen_phase_check). Adds `mc_questions` + `mc_options` with RLS. Authenticated users can read content for active assessments only — but the `is_correct` column lives on `mc_options` and the policy doesn't strip it, so the application-layer loader is the gate.
+- Real Test Bank seed at `supabase/seeds/mc_test_bank_v1.sql` applied: 50 questions + 200 options + answer key + integrity check. Active threat continues to coexist as a second active assessment.
+- `loadMcQuestionsForStudent` in `src/lib/db.ts` projects only `id, label, text` — never `is_correct` or `response_category`. New vitest case asserts the loader contract.
+- `src/components/quiz/McRunner.tsx` mirrors the doctrine-locked AnswerScreen reaction-time pattern (`useRef(Date.now())` at mount, `answeredRef` debounce, no back/Next/progress UI, parent-controlled auto-advance via re-key).
+- `src/components/quiz/McQuiz.tsx` shell handles in_progress / submitting / results / error states. Skips title screen entirely.
+- `submitMcAssessment` server action: same trust model as scenario submit (studentId from session, ownership + non-completion + atomic completion gate), plus content-integrity validation that every (questionId, optionId, optionLabel) triple actually belongs together.
+- `0006_widen_phase_check.sql` — wait, that's Day 4. Day 5 also added `0008_responses_long_unique_per_question.sql` (partial unique index on `(enrollment_id, question_id) where enrollment_id is not null`) to close the race-loser data poisoning gap the Day 4 audit flagged but deferred.
+- 25 vitest cases including 5 new MC ones and the loader-contract leak test. All green.
+
+### Subagent audit (clean, with 3 items addressed pre-commit):
+1. ✅ MC submission validates content integrity (questionId/optionId/label cross-check).
+2. ✅ `(enrollment_id, question_id)` unique index added in 0008.
+3. ✅ MC long-format CSV rows now carry first/last name from profile (was empty).
+Plus deferred: assessment-level "MC results in admin" UX (Responses tab is wide-table only and MC writes only long), MC tagging UI (NEEDS_DOCTOR #3).
+
+### Token-URL student auth pivot (Phase K, replacing Day 5 prompt's email/OTP plan)
+- Why: tried OTP code login as a fix for Gmail prefetch consuming magic-link tokens. Server-side verifyOtp consistently failed with "token expired or is invalid" — Supabase's @supabase/ssr server client uses PKCE flow even without `emailRedirectTo`, storing the token under a key that verifyOtp({type:'email'}|'magiclink') doesn't recognize. After several rounds of debugging (and confirming SMTP+Resend wiring is correct), pivoted: students don't authenticate at all.
+- `0009_enrollment_secret_token.sql` — adds `secret_token uuid not null default gen_random_uuid() unique` to enrollments. Backfill is implicit via the default.
+- `/take/[token]/page.tsx` — server component, no auth required. Looks up enrollment by token via service-role client. Renders Quiz or McQuiz. Shows "Already submitted" page on revisit.
+- `submitAssessmentByToken` and `submitMcAssessmentByToken` — derive enrollment, student, phase, and identity from the token server-side. Same atomic completion gate.
+- Quiz.tsx + McQuiz.tsx accept optional `token` prop. When present, submission goes through the byToken actions instead of the auth-mode actions.
+- `EnrollmentLinks` component on org detail page — clickable badges per enrollment phase that copy the take URL to clipboard. Completed enrollments show struck-through.
+- `/auth/login` reverted from short-lived OTP variant back to admin-only magic-link form (with the known Gmail-prefetch caveat — admins click in same browser session as initiation; works in practice).
+
+### Resend SMTP setup (Phase I, partial)
+- Custom SMTP wired to Resend Pro account: `smtp.resend.com:587`, sender `onboarding@resend.dev`, name "MVS". Subject template uses `{{ .Token }}`.
+- Sandbox restriction: only delivers to email tied to Resend account (dannygreer@gmail.com + plus-aliases). Sufficient for dev. **Hard blocker for cohort**: must verify a real domain (e.g. `mail.mentalvelocitysystem.com`) before any non-Danny student gets emailed. With the token-URL pivot, students don't get emailed at all — but admin sign-in still flows through Supabase Auth + Resend, and the doctor (and any future org_admins) need to be reachable.
+- Recommend in next session: domain verification at Resend, swap sender email, also disable Click Tracking in Resend if you don't need it (cleaner email bodies).
+
+**Tests:** 29/29 vitest cases green throughout the day.
+
+**Live verification (token-URL flow):**
+- Created two practice enrollments for dannygreer+s1@gmail.com (one scenario, one MC).
+- Pasted both /take/[token] URLs into a fresh browser tab (no auth, no incognito).
+- Scenario: 6 responses_long rows, completed_at stamped, first_name "Test" populated, RTs 466–733ms.
+- MC: 50 responses_long rows, completed_at stamped, first_name "Test" populated, RTs 2–2564ms (the 2ms = rapid speed-test click).
+- "Already submitted" page renders on revisit. ✅
+
+**Day 6 plan (per `MVS_Project_Plan.md`):**
+- Build `/org` portal for org_admin role: read-only roster + aggregate scores for their org.
+- RLS guarantees isolation; existing `org_admin read enrollments in org` policy from 0004 covers it.
+- Plus: tighten roster UI to label take-link badges by assessment code (Day 5b deferred this).
+
+**Open items:**
+- Resend domain verification (backlog blocker before cohort).
+- Bulk-invite UX needs reconsideration: do we still send emails (auth.admin.inviteUserByEmail) when the actual delivery channel is the doctor handing out URLs? Probably switch to `auth.admin.createUser` (no email) and surface the URLs in the admin UI. Day 6 candidate.
+- `/app/take/[enrollmentId]` (Day 4 auth path) is still wired but largely supplanted by `/take/[token]`. Keep it for now as a back-door for authenticated student testing; deprecate when student portal is removed.

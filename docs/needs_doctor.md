@@ -6,11 +6,13 @@ These are blockers for production-quality data. The platform can be built and th
 
 ## Critical path (block accurate first cohort)
 
-### 1. Test Bank answer key — 50 questions
-For every question in `Test_Bank_Doctrine_Locked.docx`, mark the correct option (A/B/C/D).
-- **Status:** [NEEDS_DOCTOR]
-- **Format:** simple list, e.g. `1: B`, `2: C`, `3: A`, ...
-- **Owner:** Dr. Scully
+### 1. ~~Test Bank answer key — 50 questions~~ — RESOLVED 2026-05-08
+- Doctor delivered `Test Bank Questions.docx` (cleaned text) + `Exam Answer Key and Rubric.docx` (answer key + 80% pass threshold + performance tiers).
+- Seeded into `supabase/seeds/mc_test_bank_v1.sql` (idempotent; integrity check enforces 4 options + 1 correct per question).
+- **Two flags worth Dr. Scully reviewing before cohort:**
+  1. **Answer distribution skew.** 41 of 50 answers (82%) are option B. A test-savvy student could score 82% by picking B for everything. If this is intentional doctrine alignment (B is consistently positioned as the named MVS concept), confirm. Otherwise consider scrambling option positions.
+  2. **Residual artifact in Q29.** Reads "The interact becomes reactive, system responsive. What is the FIRST missing?" — likely a stray find-replace artifact. Verify intended wording before launch.
+- Rubric details (80% pass, four-tier performance bands, "outcome trap" disqualifier) captured in `Exam Answer Key and Rubric.docx` — implementation lands during admin polish (Day 9-10).
 
 ### 2. Scenario Bank options + answers — 25 scenarios × 4 questions = 100 questions
 Each scenario in `Scenario_Bank_Doctrine_Locked.docx` provides the 4 standardized questions but no multiple-choice options for them. Need:

@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import type { Scenario, Phase, ScreenResponse } from '@/types';
-import { submitAssessment } from '@/actions/quiz';
+import { submitAssessment, submitAssessmentByToken } from '@/actions/quiz';
 import TitleScreen from './TitleScreen';
 import { ReadScreen, AnswerScreen } from './ScenarioScreen';
 import ResultsScreen from './ResultsScreen';
@@ -19,6 +19,10 @@ interface QuizProps {
   prefillFirstName?: string;
   prefillLastName?: string;
   prefillPhase?: Phase;
+  // Day 5b — token-URL mode (no auth). Set by /take/[token] route. When
+  // present, submission goes through submitAssessmentByToken which derives
+  // enrollment + student from the token server-side.
+  token?: string;
 }
 
 export default function Quiz({
@@ -28,8 +32,9 @@ export default function Quiz({
   prefillFirstName,
   prefillLastName,
   prefillPhase,
+  token,
 }: QuizProps) {
-  const isEnrolled = !!enrollmentId;
+  const isEnrolled = !!enrollmentId || !!token;
   const [step, setStep] = useState<Step>(
     isEnrolled && scenario ? 'reading' : 'title'
   );
@@ -121,19 +126,30 @@ export default function Quiz({
         const participantId = `${firstName.toLowerCase()}_${lastName.toLowerCase()}_${Date.now()}`;
 
         try {
-          await submitAssessment({
-            participantId,
-            firstName,
-            lastName,
-            phase,
-            scenarioId: scenario.scenarioId,
-            scenarioVersion: scenario.version,
-            branchPath: newPath,
-            responses: newResponses,
-            totalTime,
-            enrollmentId,
-            studentId,
-          });
+          if (token) {
+            await submitAssessmentByToken({
+              token,
+              scenarioId: scenario.scenarioId,
+              scenarioVersion: scenario.version,
+              branchPath: newPath,
+              responses: newResponses,
+              totalTime,
+            });
+          } else {
+            await submitAssessment({
+              participantId,
+              firstName,
+              lastName,
+              phase,
+              scenarioId: scenario.scenarioId,
+              scenarioVersion: scenario.version,
+              branchPath: newPath,
+              responses: newResponses,
+              totalTime,
+              enrollmentId,
+              studentId,
+            });
+          }
         } catch (e) {
           console.error('Failed to submit assessment:', e);
         }
@@ -151,6 +167,7 @@ export default function Quiz({
       phase,
       enrollmentId,
       studentId,
+      token,
     ],
   );
 

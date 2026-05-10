@@ -440,3 +440,115 @@ describe('RLS — assessments + enrollments (0004)', () => {
     expect(after2?.assessment_id).toBe(testAssessmentId);
   });
 });
+
+describe('RLS — multi-choice (0007)', () => {
+  let mcAssessmentId: string;
+  let inactiveAssessmentId: string;
+  let inactiveQuestionId: string;
+
+  beforeAll(async () => {
+    const { data: a } = await admin
+      .from('assessments')
+      .select('id')
+      .eq('code', 'mvs_test_bank_v1')
+      .single();
+    mcAssessmentId = a!.id;
+
+    // Create an inactive multi-choice assessment + a question to assert
+    // students can't read content from inactive assessments.
+    const code = `inactive_mc_${Date.now()}`;
+    const { data: ia } = await admin
+      .from('assessments')
+      .insert({
+        code,
+        name: 'inactive mc',
+        kind: 'multi_choice',
+        is_active: false,
+      })
+      .select('id')
+      .single();
+    inactiveAssessmentId = ia!.id;
+    const { data: iq } = await admin
+      .from('mc_questions')
+      .insert({
+        assessment_id: inactiveAssessmentId,
+        sequence: 1,
+        prompt: 'inactive Q',
+      })
+      .select('id')
+      .single();
+    inactiveQuestionId = iq!.id;
+  });
+
+  afterAll(async () => {
+    if (inactiveQuestionId) {
+      await admin.from('mc_questions').delete().eq('id', inactiveQuestionId);
+    }
+    if (inactiveAssessmentId) {
+      await admin.from('assessments').delete().eq('id', inactiveAssessmentId);
+    }
+  });
+
+  it('super_admin can insert + select mc_questions', async () => {
+    const c = await userClient(superAdmin.email);
+    const { data, error: insErr } = await c
+      .from('mc_questions')
+      .insert({
+        assessment_id: mcAssessmentId,
+        sequence: 9999,
+        prompt: 'rls test prompt',
+      })
+      .select('id')
+      .single();
+    expect(insErr).toBeNull();
+    expect(data?.id).toBeTruthy();
+    if (data) await admin.from('mc_questions').delete().eq('id', data.id);
+  });
+
+  it('student can read mc_questions for the active Test Bank assessment', async () => {
+    const c = await userClient(studentA.email);
+    const { data, error } = await c
+      .from('mc_questions')
+      .select('id, sequence')
+      .eq('assessment_id', mcAssessmentId);
+    expect(error).toBeNull();
+    expect((data ?? []).length).toBe(50);
+  });
+
+  it('student CANNOT read mc_questions for an inactive assessment', async () => {
+    const c = await userClient(studentA.email);
+    const { data } = await c
+      .from('mc_questions')
+      .select('id')
+      .eq('id', inactiveQuestionId);
+    expect(data ?? []).toEqual([]);
+  });
+
+  it('anonymous client CANNOT read mc_questions', async () => {
+    const anon = createClient(SUPABASE_URL, ANON_KEY, {
+      auth: { persistSession: false },
+    });
+    const { data } = await anon
+      .from('mc_questions')
+      .select('id')
+      .eq('assessment_id', mcAssessmentId);
+    expect(data ?? []).toEqual([]);
+  });
+
+  it('loadMcQuestionsForStudent never returns is_correct or response_category', async () => {
+    // Direct check on the loader contract — even if the underlying RLS lets
+    // students read those columns via raw supabase-js, our loader must strip
+    // them. Import via the dynamic path to avoid Next-only deps.
+    const mod = await import('@/lib/db');
+    const questions = await mod.loadMcQuestionsForStudent(mcAssessmentId);
+    expect(questions.length).toBe(50);
+    for (const q of questions) {
+      expect(Object.keys(q)).not.toContain('is_correct');
+      expect(Object.keys(q)).not.toContain('response_category');
+      for (const opt of q.options) {
+        expect(Object.keys(opt)).not.toContain('is_correct');
+        expect(Object.keys(opt)).not.toContain('response_category');
+      }
+    }
+  });
+});

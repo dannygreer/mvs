@@ -89,6 +89,30 @@ export interface ResponseWideRow {
   student_id: string | null;
 }
 
+// Multi-choice (Day 5)
+export interface McOption {
+  id: string;
+  label: 'A' | 'B' | 'C' | 'D';
+  text: string;
+}
+
+export interface McQuestion {
+  id: string;
+  sequence: number;
+  prompt: string;
+  timeLimitSeconds: number | null;
+  options: McOption[];
+}
+
+export interface McResponse {
+  questionId: string;
+  sequence: number;
+  optionLabel: 'A' | 'B' | 'C' | 'D' | null;
+  optionId: string | null;
+  rtMs: number;
+  timedOut: boolean;
+}
+
 export interface ResponseTag {
   id: string;
   scenario_fk: string;
