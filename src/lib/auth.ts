@@ -59,6 +59,28 @@ export async function getCurrentProfile() {
 //   - super_admin → /mvs/admin (their portal)
 //   - org_admin → /org (placeholder until Day 6)
 // Returns the user + profile when role === 'student'.
+// Server helper for /org routes. Redirects:
+//   - no session → /auth/login?next=<current path>
+//   - super_admin → /mvs/admin
+//   - student → /app
+// Returns user + profile when role === 'org_admin'.
+export async function requireOrgAdmin(currentPath: string = '/org') {
+  const result = await getCurrentProfile();
+  if (!result) {
+    redirect(`/auth/login?next=${encodeURIComponent(currentPath)}`);
+  }
+  if (result.profile.role === 'super_admin') redirect('/mvs/admin');
+  if (result.profile.role === 'student') redirect('/app');
+  // Defense-in-depth allowlist: anything that isn't org_admin gets bounced.
+  // The CHECK constraint on profiles.role currently makes this unreachable,
+  // but if the constraint is ever relaxed an unknown role would otherwise
+  // fall through and gain /org access.
+  if (result.profile.role !== 'org_admin') {
+    redirect(`/auth/login?next=${encodeURIComponent(currentPath)}`);
+  }
+  return result;
+}
+
 export async function requireStudent(currentPath: string = '/app') {
   const result = await getCurrentProfile();
   if (!result) {

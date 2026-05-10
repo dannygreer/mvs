@@ -57,6 +57,130 @@ export async function updateOrg(id: string, formData: FormData) {
 }
 
 // ============================================================
+// INVITE ORG ADMIN (single)
+// ============================================================
+
+export type InviteOrgAdminResult =
+  | {
+      status:
+        | 'invited'
+        | 'already_admin'
+        | 'promoted_student';
+      message?: string;
+    }
+  | {
+      status: 'conflict_other_org' | 'super_admin_protected' | 'error';
+      message: string;
+    };
+
+export async function inviteOrgAdmin(
+  _prev: InviteOrgAdminResult | null,
+  formData: FormData
+): Promise<InviteOrgAdminResult> {
+  await requireSuperAdmin();
+
+  const orgId = String(formData.get('orgId') ?? '').trim();
+  const fullName = String(formData.get('fullName') ?? '').trim();
+  const email = String(formData.get('email') ?? '').trim();
+
+  if (!orgId) return { status: 'error', message: 'orgId required' };
+  if (!fullName) return { status: 'error', message: 'Full name required' };
+  if (!EMAIL_RE.test(email)) {
+    return { status: 'error', message: 'Invalid email format' };
+  }
+
+  const client = adminClient();
+  let userId: string | null = null;
+  let invited = false;
+
+  const { data: inviteData, error: inviteErr } =
+    await client.auth.admin.inviteUserByEmail(email, {
+      redirectTo: `${getAppUrl()}/auth/callback?next=/org`,
+      data: { full_name: fullName },
+    });
+
+  if (inviteErr) {
+    const msg = inviteErr.message ?? '';
+    if (
+      /already registered/i.test(msg) ||
+      /already exists/i.test(msg) ||
+      inviteErr.status === 422
+    ) {
+      userId = await findUserByEmail(client, email);
+      if (!userId) {
+        return {
+          status: 'error',
+          message: `Existing user lookup failed: ${msg}`,
+        };
+      }
+    } else {
+      return { status: 'error', message: msg };
+    }
+  } else {
+    userId = inviteData?.user?.id ?? null;
+    invited = true;
+    if (!userId) {
+      return { status: 'error', message: 'Invite returned no user id' };
+    }
+  }
+
+  const { data: existing } = await client
+    .from('profiles')
+    .select('org_id, role, full_name')
+    .eq('id', userId)
+    .single();
+
+  if (existing?.role === 'super_admin') {
+    return {
+      status: 'super_admin_protected',
+      message: 'Cannot demote a super_admin via this UI.',
+    };
+  }
+  if (existing?.org_id && existing.org_id !== orgId) {
+    return {
+      status: 'conflict_other_org',
+      message: `User already belongs to another org (${existing.org_id})`,
+    };
+  }
+
+  const { error: upErr } = await client.from('profiles').upsert(
+    {
+      id: userId,
+      role: 'org_admin',
+      org_id: orgId,
+      full_name: existing?.full_name ?? fullName,
+    },
+    { onConflict: 'id' }
+  );
+  if (upErr) {
+    return { status: 'error', message: `Profile update failed: ${upErr.message}` };
+  }
+
+  revalidatePath(`/mvs/admin/orgs/${orgId}`);
+
+  if (existing?.role === 'org_admin' && existing.org_id === orgId) {
+    return {
+      status: 'already_admin',
+      message: 'User is already an admin of this org.',
+    };
+  }
+  // Surface a distinct status when we promoted an existing student (vs.
+  // created a new admin from scratch). Doctor may not expect a quiet
+  // role change for someone already on the roster.
+  if (existing?.role === 'student' && existing.org_id === orgId) {
+    return {
+      status: 'promoted_student',
+      message:
+        'Existing student in this org was promoted to org_admin. Confirm this was intended.',
+    };
+  }
+  return {
+    status: 'invited',
+    message: invited ? 'Invite email sent.' : 'Existing user promoted to org_admin.',
+  };
+}
+
+// ============================================================
 // BULK INVITE STUDENTS
 // ============================================================
 

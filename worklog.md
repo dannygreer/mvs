@@ -275,3 +275,58 @@ Plus deferred: assessment-level "MC results in admin" UX (Responses tab is wide-
 - Resend domain verification (backlog blocker before cohort).
 - Bulk-invite UX needs reconsideration: do we still send emails (auth.admin.inviteUserByEmail) when the actual delivery channel is the doctor handing out URLs? Probably switch to `auth.admin.createUser` (no email) and surface the URLs in the admin UI. Day 6 candidate.
 - `/app/take/[enrollmentId]` (Day 4 auth path) is still wired but largely supplanted by `/take/[token]`. Keep it for now as a back-door for authenticated student testing; deprecate when student portal is removed.
+
+---
+
+## 2026-05-09 — Day 6: org admin portal + scoring view + invite-org-admin UI
+
+**Branch:** `feat/org-admin-portal` (cut from `feat/multi-choice-runner`).
+
+**What shipped:**
+
+### Migration 0010 — enrollment_scores + org_assessment_rollup views
+- Two read-only views computing per-enrollment score (correct/total/percent/pass) and per-org rollup (enrolled/completed/passed/avg-score/avg-time).
+- **CRITICAL** `security_invoker = true` on both views. Default Postgres views run as the owner (postgres = bypasses RLS) — without this an org_admin could read every other org's enrollments via the view. Confirmed via vitest: `org_admin sees only own org` initially failed (got both rows), passed after the security_invoker setting.
+- MC question_id join handles Day 5's `q01..q50` storage format by stripping the leading `q` before casting to int and matching `mc_questions.sequence`.
+- Added 2 vitest cases: cross-org isolation via the view, and 80%-rubric pass math correctness (boundary case + below-boundary). All 27 tests green.
+
+### inviteOrgAdmin server action + UI
+- `/mvs/admin/orgs/[id]` got a new "Org admins" section above the (now student-only) roster.
+- `inviteOrgAdmin` action: validates email, refuses to demote a super_admin, surfaces conflict if user already in different org. New `promoted_student` status surfaces when an existing student in the same org gets promoted (subagent flagged silent promotion as a UX risk).
+- `InviteOrgAdminForm` client component with status badge feedback.
+
+### /org portal
+- `requireOrgAdmin(currentPath)` helper. Redirects super_admin → `/mvs/admin`, student → `/app`, anon → `/auth/login?next=`. Defense-in-depth allowlist: anything that isn't `org_admin` redirects to login (subagent flagged the missing explicit check).
+- `/org/layout.tsx`: header with org name + display name + sign-out.
+- `/org/page.tsx`: server component, all data via SSR authenticated client so RLS scopes everything to `auth_org()`. Three sections:
+  - **Org info card** — name, type, contact info.
+  - **Snapshot** — students/enrollments/completed counts.
+  - **Performance by assessment** — rows from `org_assessment_rollup` with enrolled/done/pass-rate/avg-score/avg-time.
+  - **Roster** — students grouped, each row showing per-enrollment phase + score% + pass/fail badge for MC + completion timestamp.
+- **NO** access to per-student `responses_long` rows. Aggregates and per-enrollment scores only — doctrine-locked.
+
+### Subagent audit (clean — 3 medium items, 2 fixed pre-commit, 1 deferred)
+1. ✅ **Defense-in-depth `requireOrgAdmin` allow-check** — added explicit `role !== 'org_admin'` redirect.
+2. ✅ **Silent student→org_admin promotion** — surfaced as `promoted_student` status with explicit message asking the doctor to confirm intent.
+3. ⚠️ **TOCTOU race in inviteOrgAdmin** — concurrent invites of the same user to different orgs could both pass the conflict check and the second upsert overwrites org_id. Deferred (low likelihood, single-admin model). Mitigation: switch to conditional update with `WHERE role <> 'super_admin' AND (org_id IS NULL OR org_id = $orgId)`.
+
+Plus low-severity: `getOrg` in /org page uses service-role (bypasses RLS), but the org_id input comes from the org_admin's own profile (which they cannot self-mutate per 0003 RLS). Worth flagging if a future feature lets profiles.org_id be modified server-side.
+
+### End-to-end (browser, real org_admin)
+- Created `dannygreer+orgadmin@gmail.com` via admin SDK directly (Resend sandbox rejects plus-aliases for invite emails — known limitation, must verify domain before cohort).
+- Promoted to org_admin in Day 3 Test Org via SQL.
+- Signed in via `/dev/login-as?email=...` (re-added then deleted).
+- `/org` rendered correctly: snapshot 1/4/4, performance table all 4 rows, roster with green 82% pass + red 40% fail badges.
+
+**Day 7 plan (per `MVS_Project_Plan.md`):**
+- Email automation via Resend SDK (transactional templates, separate from Supabase Auth's SMTP).
+- Vercel Cron route for due-soon reminder ticks.
+- Triggers: enrollment created (invite), 3 days before due (pre-reminder), training day +1 (post-invite), 3 days after post-invite (post-reminder).
+- Track `invited_email_sent_at` and `reminder_sent_at` on `enrollments`.
+
+**Open items / backlog:**
+- **Resend domain verification** — unblocked Day 7 fully if done. Sandbox can't email any non-Danny address (including plus-aliases for the invite-org-admin path).
+- **inviteOrgAdmin should not roll back when SMTP fails** — if Resend rejects the email, the user record creation is also reverted. Better UX: create the user first via `createUser`, then attempt `generateLink` + email send separately. Failed email becomes a soft warning, not a hard failure. Will surface this when domain is verified.
+- **TOCTOU race fix** in inviteOrgAdmin (subagent #7).
+- **Per-student detail expansion** in /org roster — currently shows all enrollments inline; could collapse and expand for orgs with many students. Day 10 polish.
+- **Org admin can see student names but not emails** — by design (no auth.users access). Reconsider when org_admin workflows need email contact (e.g., for a "remind this student" button).

@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { createClient as createSsrClient } from '@/lib/supabase/server';
 import type {
   Scenario,
   ScenarioScreen,
@@ -595,5 +596,116 @@ export async function getOrgRoster(orgId: string): Promise<OrgRosterRow[]> {
     created_at: p.created_at,
     completed_count: completedById.get(p.id) ?? 0,
     enrollments: enrollmentsById.get(p.id) ?? [],
+  }));
+}
+
+// ============================================================
+// ENROLLMENT SCORES (Day 6 — used by both super_admin + org_admin)
+// ============================================================
+//
+// These two helpers query the security_invoker views from migration 0010.
+// They use an AUTHENTICATED supabase client (not service role) so RLS
+// applies — org_admins automatically get scoped to their own org's rows.
+
+export type EnrollmentScoreRow = {
+  enrollment_id: string;
+  student_id: string;
+  org_id: string | null;
+  assessment_id: string;
+  assessment_code: string;
+  assessment_kind: 'scenario' | 'multi_choice';
+  phase: 'pre' | 'post' | 'practice';
+  assigned_at: string;
+  completed_at: string | null;
+  response_count: number;
+  timed_out_count: number;
+  total_time_ms: number;
+  avg_rt_ms: number | null;
+  correct_count: number | null;
+  total_questions: number | null;
+  score_percent: number | null;
+  pass: boolean | null;
+};
+
+export async function listEnrollmentScoresForCurrentOrg(): Promise<EnrollmentScoreRow[]> {
+  const ssr = await createSsrClient();
+  const { data, error } = await ssr
+    .from('enrollment_scores')
+    .select('*')
+    .order('completed_at', { ascending: false, nullsFirst: true })
+    .order('assigned_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as EnrollmentScoreRow[];
+}
+
+export type OrgRollupRow = {
+  org_id: string;
+  assessment_id: string;
+  assessment_code: string;
+  assessment_kind: 'scenario' | 'multi_choice';
+  phase: 'pre' | 'post' | 'practice';
+  enrolled_count: number;
+  completed_count: number;
+  passed_count: number;
+  avg_score_percent: number | null;
+  avg_total_time_ms: number | null;
+  avg_rt_ms: number | null;
+};
+
+export async function listOrgRollupForCurrentOrg(): Promise<OrgRollupRow[]> {
+  const ssr = await createSsrClient();
+  const { data, error } = await ssr
+    .from('org_assessment_rollup')
+    .select('*')
+    .order('assessment_code')
+    .order('phase');
+  if (error) throw new Error(error.message);
+  return (data ?? []) as OrgRollupRow[];
+}
+
+// ============================================================
+// ORG ADMIN listing — Day 6
+// ============================================================
+//
+// Same authz caveat as the rest of this module: service-role bypasses RLS,
+// callers must enforce role themselves.
+
+export type OrgAdminRow = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  created_at: string;
+};
+
+export async function getOrgAdmins(orgId: string): Promise<OrgAdminRow[]> {
+  const client = getClient();
+  const { data: profiles, error } = await client
+    .from('profiles')
+    .select('id, full_name, created_at')
+    .eq('org_id', orgId)
+    .eq('role', 'org_admin')
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  if (!profiles || profiles.length === 0) return [];
+
+  // Email comes from auth.users (paginated lookup, bounded).
+  const ids = new Set(profiles.map((p) => p.id));
+  const emailById = new Map<string, string | null>();
+  let page = 1;
+  while (emailById.size < ids.size && page <= 20) {
+    const { data: list } = await client.auth.admin.listUsers({ page, perPage: 50 });
+    if (!list || list.users.length === 0) break;
+    for (const u of list.users) {
+      if (ids.has(u.id)) emailById.set(u.id, u.email ?? null);
+    }
+    if (list.users.length < 50) break;
+    page++;
+  }
+
+  return profiles.map((p) => ({
+    id: p.id,
+    full_name: p.full_name,
+    email: emailById.get(p.id) ?? null,
+    created_at: p.created_at,
   }));
 }

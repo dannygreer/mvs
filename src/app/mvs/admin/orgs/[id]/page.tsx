@@ -2,10 +2,11 @@ import { headers } from 'next/headers';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireSuperAdmin } from '@/lib/auth';
-import { getOrg, getOrgRoster } from '@/lib/db';
+import { getOrg, getOrgAdmins, getOrgRoster } from '@/lib/db';
 import { updateOrg } from '@/actions/orgs';
 import OrgForm from '@/components/admin/OrgForm';
 import EnrollmentLinks from '@/components/admin/EnrollmentLinks';
+import InviteOrgAdminForm from '@/components/admin/InviteOrgAdminForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +28,9 @@ export default async function OrgDetailPage({
   const org = await getOrg(id);
   if (!org) notFound();
 
-  const roster = await getOrgRoster(id);
+  const fullRoster = await getOrgRoster(id);
+  const roster = fullRoster.filter((m) => m.role === 'student');
+  const orgAdmins = await getOrgAdmins(id);
   const baseUrl = await getBaseUrl();
   const updateAction = updateOrg.bind(null, id);
 
@@ -69,11 +72,52 @@ export default async function OrgDetailPage({
         </section>
 
         <section className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-zinc-200">
+            <h2 className="text-sm font-semibold text-zinc-900 uppercase tracking-wide mb-1">
+              Org admins
+            </h2>
+            <p className="text-xs text-zinc-500">
+              {orgAdmins.length === 0
+                ? 'No org admins yet.'
+                : `${orgAdmins.length} admin${orgAdmins.length === 1 ? '' : 's'}`}
+            </p>
+          </div>
+          {orgAdmins.length > 0 && (
+            <table className="w-full text-sm border-b border-zinc-200">
+              <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500">
+                <tr>
+                  <th className="text-left px-4 py-2 font-medium">Name</th>
+                  <th className="text-left px-4 py-2 font-medium">Email</th>
+                  <th className="text-left px-4 py-2 font-medium">Invited</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orgAdmins.map((a) => (
+                  <tr
+                    key={a.id}
+                    className="border-t border-zinc-100"
+                  >
+                    <td className="px-4 py-2 text-zinc-900">{a.full_name ?? '—'}</td>
+                    <td className="px-4 py-2 text-zinc-600">{a.email ?? '—'}</td>
+                    <td className="px-4 py-2 text-zinc-500">
+                      {new Date(a.created_at).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <div className="px-6 py-4">
+            <InviteOrgAdminForm orgId={id} />
+          </div>
+        </section>
+
+        <section className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
           <div className="px-6 py-4 border-b border-zinc-200 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-zinc-900 uppercase tracking-wide">
               Roster
             </h2>
-            <span className="text-xs text-zinc-500">{roster.length} members</span>
+            <span className="text-xs text-zinc-500">{roster.length} students</span>
           </div>
           {roster.length === 0 ? (
             <p className="px-6 py-12 text-center text-zinc-500 text-sm">

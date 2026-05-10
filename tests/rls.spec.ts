@@ -41,7 +41,15 @@ async function makeUser(
   return { id, email };
 }
 
+// Cache one signed-in client per email. Supabase Auth rate-limits per IP
+// (90 sign-ins/5min on free tier); each test was previously creating a fresh
+// session, exceeding the limit once we crossed ~20 cases. Sessions persist
+// for the test run; afterAll deletes the users.
+const clientCache = new Map<string, SupabaseClient>();
+
 async function userClient(email: string): Promise<SupabaseClient> {
+  const cached = clientCache.get(email);
+  if (cached) return cached;
   const c = createClient(SUPABASE_URL, ANON_KEY, {
     auth: { persistSession: false },
   });
@@ -50,6 +58,7 @@ async function userClient(email: string): Promise<SupabaseClient> {
     password: TEST_PASSWORD,
   });
   if (error) throw error;
+  clientCache.set(email, c);
   return c;
 }
 
@@ -80,6 +89,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  clientCache.clear();
   for (const u of [superAdmin, orgAdminA, orgAdminB, studentA, studentB]) {
     if (u?.id) await admin.auth.admin.deleteUser(u.id);
   }
@@ -533,6 +543,165 @@ describe('RLS — multi-choice (0007)', () => {
       .select('id')
       .eq('assessment_id', mcAssessmentId);
     expect(data ?? []).toEqual([]);
+  });
+
+  it('enrollment_scores: super_admin sees own test enrollments; org_admin scoped to own org; cross-org blocked', async () => {
+    // Seed: enrollment for studentA against the active assessment.
+    const { data: assessment } = await admin
+      .from('assessments')
+      .select('id')
+      .eq('code', 'active_threat_v1')
+      .single();
+    const { data: enrollA } = await admin
+      .from('enrollments')
+      .insert({
+        student_id: studentA.id,
+        assessment_id: assessment!.id,
+        phase: 'practice',
+      })
+      .select('id')
+      .single();
+    const { data: enrollB } = await admin
+      .from('enrollments')
+      .insert({
+        student_id: studentB.id,
+        assessment_id: assessment!.id,
+        phase: 'practice',
+      })
+      .select('id')
+      .single();
+
+    try {
+      // super_admin sees both
+      const sa = await userClient(superAdmin.email);
+      const { data: saRows } = await sa
+        .from('enrollment_scores')
+        .select('enrollment_id, org_id')
+        .in('enrollment_id', [enrollA!.id, enrollB!.id]);
+      expect((saRows ?? []).length).toBe(2);
+
+      // org_admin in orgA sees only enrollment in orgA
+      const oa = await userClient(orgAdminA.email);
+      const { data: oaRows } = await oa
+        .from('enrollment_scores')
+        .select('enrollment_id, org_id')
+        .in('enrollment_id', [enrollA!.id, enrollB!.id]);
+      expect((oaRows ?? []).map((r) => r.enrollment_id)).toEqual([enrollA!.id]);
+
+      // org_admin in orgB sees only enrollment in orgB
+      const ob = await userClient(orgAdminB.email);
+      const { data: obRows } = await ob
+        .from('enrollment_scores')
+        .select('enrollment_id, org_id')
+        .in('enrollment_id', [enrollA!.id, enrollB!.id]);
+      expect((obRows ?? []).map((r) => r.enrollment_id)).toEqual([enrollB!.id]);
+    } finally {
+      await admin
+        .from('enrollments')
+        .delete()
+        .in('id', [enrollA!.id, enrollB!.id]);
+    }
+  });
+
+  it('enrollment_scores: pass=true when score >= 80%, false when below', async () => {
+    const { data: mcAssessment } = await admin
+      .from('assessments')
+      .select('id')
+      .eq('code', 'mvs_test_bank_v1')
+      .single();
+    const { data: mcQuestions } = await admin
+      .from('mc_questions')
+      .select('sequence, mc_options(label, is_correct)')
+      .eq('assessment_id', mcAssessment!.id)
+      .order('sequence');
+
+    // Pull the answer key.
+    const correctByQ = new Map<number, string>();
+    for (const q of mcQuestions ?? []) {
+      const correctOpt = (q.mc_options as { label: string; is_correct: boolean }[]).find(
+        (o) => o.is_correct
+      );
+      if (correctOpt) correctByQ.set(q.sequence as number, correctOpt.label);
+    }
+
+    // Create a fresh enrollment for the score test.
+    const { data: scored } = await admin
+      .from('enrollments')
+      .insert({
+        student_id: studentA.id,
+        assessment_id: mcAssessment!.id,
+        phase: 'practice',
+      })
+      .select('id')
+      .single();
+
+    try {
+      // Insert exactly 41 correct answers + 9 wrong = 82% → pass.
+      const rows: Record<string, unknown>[] = [];
+      for (let i = 1; i <= 50; i++) {
+        const correctLabel = correctByQ.get(i) ?? 'B';
+        const wrongLabel = ['A', 'B', 'C', 'D'].find((l) => l !== correctLabel) ?? 'A';
+        const useCorrect = i <= 41;
+        rows.push({
+          participant_id: 'score_test',
+          first_name: 'Score',
+          last_name: 'Test',
+          phase: 'practice',
+          scenario_id: 'mvs_test_bank_v1',
+          scenario_version: '1',
+          question_id: `q${String(i).padStart(2, '0')}`,
+          branch_path: '',
+          option_selected: useCorrect ? correctLabel : wrongLabel,
+          response_category: null,
+          rt_ms: 1000 + i,
+          timed_out: false,
+          enrollment_id: scored!.id,
+          student_id: studentA.id,
+        });
+      }
+      const { error: insErr } = await admin.from('responses_long').insert(rows);
+      expect(insErr).toBeNull();
+
+      const { data: passRow } = await admin
+        .from('enrollment_scores')
+        .select('correct_count, score_percent, pass')
+        .eq('enrollment_id', scored!.id)
+        .single();
+      expect(passRow?.correct_count).toBe(41);
+      expect(Number(passRow?.score_percent)).toBe(82);
+      expect(passRow?.pass).toBe(true);
+
+      // Now flip one row to wrong → 40/50 = 80% (still pass — boundary).
+      // Then drop another → 39/50 = 78% → fail.
+      await admin
+        .from('responses_long')
+        .delete()
+        .eq('enrollment_id', scored!.id);
+      const fail = rows.map((r, idx) => ({
+        ...r,
+        option_selected: idx < 39 ? r.option_selected : 'X', // 39 right, 11 'X' (treated wrong)
+      }));
+      // Use valid letters; 'X' would violate option set. Use a deliberate wrong label.
+      for (let i = 0; i < fail.length; i++) {
+        if (i >= 39) {
+          const correct = correctByQ.get((fail[i] as { question_id: string }).question_id ? i + 1 : i + 1);
+          const wrong = ['A', 'B', 'C', 'D'].find((l) => l !== correct) ?? 'A';
+          fail[i] = { ...fail[i], option_selected: wrong };
+        }
+      }
+      await admin.from('responses_long').insert(fail);
+
+      const { data: failRow } = await admin
+        .from('enrollment_scores')
+        .select('correct_count, score_percent, pass')
+        .eq('enrollment_id', scored!.id)
+        .single();
+      expect(failRow?.correct_count).toBe(39);
+      expect(failRow?.pass).toBe(false);
+    } finally {
+      await admin.from('responses_long').delete().eq('enrollment_id', scored!.id);
+      await admin.from('enrollments').delete().eq('id', scored!.id);
+    }
   });
 
   it('loadMcQuestionsForStudent never returns is_correct or response_category', async () => {
