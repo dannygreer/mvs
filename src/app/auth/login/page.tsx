@@ -1,25 +1,36 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 
-// Magic-link sign-in for ADMINS only (super_admin, org_admin).
-// Students don't sign in — they receive a /take/[token] URL from their
-// facilitator and run the assessment without any authentication.
-//
-// Most reliable when the user opens the magic-link in the same browser
-// session that initiated the request (Gmail prefetch can consume the
-// token otherwise — known platform quirk).
+// 6-digit-code sign-in for ADMINS only (super_admin, org_admin). Supabase
+// sends the code via SMTP; the user types it back here and we verify with
+// auth.verifyOtp({ type: 'email' }). Students don't sign in — they receive
+// a /take/[token] URL from their facilitator.
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>(
-    'idle'
+  return (
+    <Suspense fallback={null}>
+      <LoginInner />
+    </Suspense>
   );
+}
+
+function LoginInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = searchParams.get('next') ?? '/mvs/admin';
+
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [status, setStatus] = useState<
+    'idle' | 'sending' | 'awaiting_code' | 'verifying' | 'error'
+  >('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleRequestCode(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim()) return;
     setStatus('sending');
@@ -29,6 +40,8 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: {
+        // shouldCreateUser:false would block first-time admin invites; leave
+        // default (true) since super_admin email is pre-provisioned anyway.
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
@@ -38,7 +51,31 @@ export default function LoginPage() {
       setErrorMessage(error.message);
       return;
     }
-    setStatus('sent');
+    setStatus('awaiting_code');
+  }
+
+  async function handleVerifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    const token = code.replace(/\s/g, '').trim();
+    if (token.length < 6) return;
+    setStatus('verifying');
+    setErrorMessage(null);
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim(),
+      token,
+      type: 'email',
+    });
+
+    if (error) {
+      setStatus('error');
+      setErrorMessage(error.message);
+      return;
+    }
+    // Same redirect target /auth/callback uses for the magic-link flow.
+    router.replace(next);
+    router.refresh();
   }
 
   return (
@@ -105,20 +142,83 @@ export default function LoginPage() {
               </div>
 
               <div className="p-6 sm:p-8 mvs-body">
-                {status === 'sent' ? (
-                  <div className="text-center space-y-3 py-4">
-                    <p className="mvs-mono text-[11px] uppercase tracking-[0.25em] text-[#4FA9F0]">
-                      LINK DISPATCHED
-                    </p>
-                    <p className="text-zinc-100 text-base">
-                      Check <span className="text-[#4FA9F0]">{email}</span>.
-                    </p>
-                    <p className="text-sm text-zinc-400">
-                      Open the link in this browser to complete sign-in.
-                    </p>
-                  </div>
+                {status === 'awaiting_code' || status === 'verifying' ? (
+                  <form onSubmit={handleVerifyCode} className="space-y-5">
+                    <div className="text-center space-y-2 pb-2">
+                      <p className="mvs-mono text-[11px] uppercase tracking-[0.25em] text-[#4FA9F0]">
+                        ACCESS CODE DISPATCHED
+                      </p>
+                      <p className="text-zinc-300 text-sm">
+                        Check{' '}
+                        <span className="text-[#4FA9F0]">{email}</span> for a 6-digit code.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="code"
+                        className="mvs-mono block text-[10px] uppercase tracking-[0.25em] text-zinc-400 mb-2"
+                      >
+                        6-digit code
+                      </label>
+                      <input
+                        id="code"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        pattern="\d*"
+                        maxLength={6}
+                        required
+                        autoFocus
+                        value={code}
+                        onChange={(e) =>
+                          setCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                        }
+                        disabled={status === 'verifying'}
+                        placeholder="••••••"
+                        className="mvs-mono w-full px-4 py-3 bg-zinc-900/70 text-zinc-100 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-[#4FA9F0]/40 disabled:opacity-60 text-center text-2xl tracking-[0.4em]"
+                        style={{ border: '1px solid rgba(1,111,212,0.30)' }}
+                      />
+                    </div>
+
+                    {errorMessage && (
+                      <p className="text-sm text-red-400">{errorMessage}</p>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={status === 'verifying' || code.length < 6}
+                      className="group relative w-full px-6 py-3 mvs-mono text-sm uppercase tracking-[0.18em] text-[#4FA9F0] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{
+                        background:
+                          'linear-gradient(180deg, rgba(1,111,212,0.06) 0%, rgba(1,111,212,0.20) 100%)',
+                        border: '1px solid rgba(1,111,212,0.55)',
+                      }}
+                    >
+                      <span className="absolute top-0 left-0 w-3 h-3 border-t border-l border-[#4FA9F0]" />
+                      <span className="absolute top-0 right-0 w-3 h-3 border-t border-r border-[#4FA9F0]" />
+                      <span className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-[#4FA9F0]" />
+                      <span className="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-[#4FA9F0]" />
+                      <span className="relative inline-flex items-center justify-center gap-2">
+                        {status === 'verifying' ? 'VERIFYING…' : 'VERIFY CODE'}
+                        {status !== 'verifying' && <span aria-hidden="true">›</span>}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStatus('idle');
+                        setCode('');
+                        setErrorMessage(null);
+                      }}
+                      className="mvs-mono text-[10px] uppercase tracking-widest text-zinc-500 hover:text-[#4FA9F0] transition-colors w-full text-center"
+                    >
+                      ← use a different email
+                    </button>
+                  </form>
                 ) : (
-                  <form onSubmit={handleSubmit} className="space-y-5">
+                  <form onSubmit={handleRequestCode} className="space-y-5">
                     <div>
                       <label
                         htmlFor="email"
@@ -154,13 +254,12 @@ export default function LoginPage() {
                         border: '1px solid rgba(1,111,212,0.55)',
                       }}
                     >
-                      {/* corner brackets */}
                       <span className="absolute top-0 left-0 w-3 h-3 border-t border-l border-[#4FA9F0]" />
                       <span className="absolute top-0 right-0 w-3 h-3 border-t border-r border-[#4FA9F0]" />
                       <span className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-[#4FA9F0]" />
                       <span className="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-[#4FA9F0]" />
                       <span className="relative inline-flex items-center justify-center gap-2">
-                        {status === 'sending' ? 'TRANSMITTING…' : 'SEND MAGIC LINK'}
+                        {status === 'sending' ? 'TRANSMITTING…' : 'SEND ACCESS CODE'}
                         {status !== 'sending' && (
                           <span aria-hidden="true">›</span>
                         )}

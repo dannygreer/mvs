@@ -2,7 +2,31 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
 
+// Temporary site-wide password gate. Anyone without the mvs_access cookie
+// gets bounced to /password. The cookie is set by the password page's
+// server action and lasts 24 hours. Remove this block (and /password)
+// once the client preview window ends.
+const GATE_BYPASS_PATHS = new Set<string>([
+  '/password',
+  // Supabase magic-link callback — gating it would break admin login because
+  // the magic-link arrives from email in a context that won't have the
+  // access cookie yet. Admin still has to hit /password first to view
+  // anything; this just keeps the callback functional once authenticated.
+  '/auth/callback',
+]);
+
 export async function proxy(request: NextRequest) {
+  const path = request.nextUrl.pathname;
+
+  if (!GATE_BYPASS_PATHS.has(path)) {
+    const access = request.cookies.get('mvs_access');
+    if (!access || access.value !== '1') {
+      const url = new URL('/password', request.url);
+      url.searchParams.set('next', request.nextUrl.pathname + request.nextUrl.search);
+      return NextResponse.redirect(url);
+    }
+  }
+
   // Refresh the Supabase session for every matched request.
   const { response, supabase } = await updateSession(request);
 
