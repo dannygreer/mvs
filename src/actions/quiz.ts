@@ -5,7 +5,7 @@ import {
   insertResponsesLongChained,
   insertResponseWide,
   getResponseTagMap,
-  getActiveScenario,
+  getWalkInScenario,
   getScreenOptionMarkers,
   getMcOptionMarkers,
   getScenarioCommitmentMode,
@@ -170,6 +170,7 @@ export async function submitAssessment(data: SubmitAssessmentData) {
   // client-supplied values for the legacy anonymous path.
   let canonicalScenarioId = data.scenarioId;
   let canonicalScenarioVersion = data.scenarioVersion;
+  let canonicalScenarioDbId: string | null = null;
   let commitmentMode: 'locked' | 'revisable' =
     (await getScenarioCommitmentMode(data.scenarioId, data.scenarioVersion)) ??
     'locked';
@@ -218,6 +219,7 @@ export async function submitAssessment(data: SubmitAssessmentData) {
     }
     canonicalScenarioId = canonical.scenarioId;
     canonicalScenarioVersion = canonical.version;
+    canonicalScenarioDbId = canonical.scenarioDbId;
     commitmentMode = canonical.commitmentMode;
     optionScreenMap = canonical.optionScreenMap;
 
@@ -235,11 +237,16 @@ export async function submitAssessment(data: SubmitAssessmentData) {
     throw new Error('LOCKED_SCENARIO_REVISION_REJECTED');
   }
 
-  // Look up response tags for automatic category assignment
+  // Look up response tags for automatic category assignment. For the
+  // enrolled path we use the canonical (enrollment-bound) scenarioDbId; for
+  // the anonymous walk-in path we fall back to the walk-in scenario which
+  // is hard-bound to active_threat_v1.
   let tagMap: Record<string, string> = {};
-  const scenario = await getActiveScenario();
-  if (scenario) {
-    tagMap = await getResponseTagMap(scenario.dbId);
+  if (canonicalScenarioDbId) {
+    tagMap = await getResponseTagMap(canonicalScenarioDbId);
+  } else {
+    const walkIn = await getWalkInScenario();
+    if (walkIn) tagMap = await getResponseTagMap(walkIn.dbId);
   }
 
   // Look up authoritative per-option markers from screen_options. Never
@@ -467,11 +474,9 @@ export async function submitAssessmentByToken(data: SubmitByTokenScenarioData) {
     throw new Error('LOCKED_SCENARIO_REVISION_REJECTED');
   }
 
+  // Token path is always enrollment-bound, so use the canonical scenarioDbId.
   let tagMap: Record<string, string> = {};
-  const scenario = await getActiveScenario();
-  if (scenario) {
-    tagMap = await getResponseTagMap(scenario.dbId);
-  }
+  tagMap = await getResponseTagMap(canonical.scenarioDbId);
 
   const optionIds = Array.from(
     new Set(

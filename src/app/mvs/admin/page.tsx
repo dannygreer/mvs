@@ -2,7 +2,7 @@ import Link from 'next/link';
 import {
   getAllResponsesWide,
   getAllResponsesLong,
-  getActiveScenario,
+  getDefaultAdminScenario,
   getResponseTags,
   getAllScenarios,
 } from '@/lib/db';
@@ -30,7 +30,7 @@ export default async function AdminDashboardPage() {
     [responsesWide, responsesLong, scenario, scenarios] = await Promise.all([
       getAllResponsesWide(),
       getAllResponsesLong(),
-      getActiveScenario(),
+      getDefaultAdminScenario(),
       getAllScenarios(),
     ]);
     if (scenario) {

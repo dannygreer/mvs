@@ -14,17 +14,18 @@ These are blockers for production-quality data. The platform can be built and th
   2. **Residual artifact in Q29.** Reads "The interact becomes reactive, system responsive. What is the FIRST missing?" — likely a stray find-replace artifact. Verify intended wording before launch.
 - Rubric details (80% pass, four-tier performance bands, "outcome trap" disqualifier) captured in `Exam Answer Key and Rubric.docx` — implementation lands during admin polish (Day 9-10).
 
-### 2. ~~Scenario Bank options + answers~~ — RESOLVED 2026-05-10
+### 2. ~~Scenario Bank options + answers~~ — RESOLVED 2026-05-10; SEEDED 2026-05-11
 - Doctor delivered `MVS Animated Scenario LMS Answer Architecture.docx` with **5 scenarios**: Conversation Velocity, Perception Narrowing, Escalation Loop, Team Velocity, Recovery Failure / Drift. Full options + correct labels included.
 - **Decision (Danny, 2026-05-10):** 5 = complete v1 set. Larger randomized bank is explicit Phase 2 work; engine will support it natively but won't enable randomization for the first cohort.
-- Seed lands in a focused ~60-min session ("Day 10.5") after Day 10 infrastructure ships.
+- **Seed applied to prod 2026-05-11** via `supabase/seeds/scenarios_v1.sql`. 5 scenarios × 4 screens × 16 options × revisable commitment_mode. Assessments `scenario_*_v1` are `is_active=true` so super_admin can enroll students.
 
-### 2b. NEW — Per-option marker tagging — **admin UI READY 2026-05-11**
-Phase 1 Freeze (per `docs/phase1_freeze.md`) introduces 8 event markers per response (escalation, narrowing, premature_commitment, sequencing_break, drift, intervention, recovery, governance_instability). Day 10 shipped the admin UI: each option on each scenario screen now exposes an 8-checkbox grid in the Scenario Builder tab.
-- For the 5 new scenarios: ~80 options × 8 markers ≈ 640 checkboxes (most false; estimate 1-2 hours of doctor's time). Pending Day 10.5 seed first.
+### 2b. NEW — Per-option marker tagging — **admin UI + scenarios READY 2026-05-11**
+Phase 1 Freeze (per `docs/phase1_freeze.md`) introduces 8 event markers per response (escalation, narrowing, premature_commitment, sequencing_break, drift, intervention, recovery, governance_instability). Day 10 shipped the admin UI; Day 10.5 seeded the 5 new scenarios. Each option on each scenario screen now exposes an 8-checkbox grid in the Scenario Builder tab.
+- For the 5 new scenarios: 80 options × 8 markers = 640 checkboxes (most false; only the doctrine-correct option per question typically fires markers — estimate 1 hour of focused work).
 - For active_threat_v1: ~24 options × 8 markers, same shape — admin can tag now.
+- **Until tagged:** `event_markers` JSONB on every event row defaults to `{}`. The analytics pipeline emits valid rows with empty marker sets; cohort dashboards just won't have marker-driven cuts until tagging is in.
 - **MC option markers:** UI not yet wired (server action exists, sibling tab in admin needed). Lower priority since MC has no revision flow and analytics queries can still operate on scenario-option markers.
-- **Status:** [NEEDS_DOCTOR — admin UI ready]
+- **Status:** [NEEDS_DOCTOR — admin UI + scenarios ready, please tag at https://mentalvelocitysystem.com/mvs/admin once DNS lands]
 - **Owner:** Dr. Scully
 
 ### 2c. NEW — Scenario classification tags — **admin UI READY 2026-05-11**

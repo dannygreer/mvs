@@ -119,7 +119,29 @@ export async function getScenarioById(id: string): Promise<Scenario | null> {
   return loadScenarioFromRow(client, data as Record<string, unknown>);
 }
 
-export async function getActiveScenario(): Promise<Scenario | null> {
+// Walk-in scenario for the anonymous `/quiz` path. Hard-bound to
+// `active_threat_v1` by scenario_id: adding more scenarios to the DB (with
+// `is_active=true` toggled on any of them) MUST NOT swap the walk-in
+// experience out from under anonymous users. The walk-in is the doctrine
+// baseline; everything else is an enrollment-bound assessment behind auth
+// or a token URL.
+export async function getWalkInScenario(): Promise<Scenario | null> {
+  const client = getClient();
+  const { data, error } = await client
+    .from('scenarios')
+    .select('*')
+    .eq('scenario_id', 'active_threat_v1')
+    .order('version', { ascending: false })
+    .limit(1)
+    .single();
+  if (error || !data) return null;
+  return loadScenarioFromRow(client, data as Record<string, unknown>);
+}
+
+// Admin-side "default" scenario: whichever scenario the super_admin toggled
+// is_active=true for. Used as the initial load for the Scenario Builder tab.
+// The admin UI has a selector to switch among all scenarios.
+export async function getDefaultAdminScenario(): Promise<Scenario | null> {
   const client = getClient();
   const { data, error } = await client
     .from('scenarios')
@@ -129,6 +151,22 @@ export async function getActiveScenario(): Promise<Scenario | null> {
     .single();
   if (error || !data) return null;
   return loadScenarioFromRow(client, data as Record<string, unknown>);
+}
+
+// Load a scenario by the assessment_id that an enrollment binds to. Used
+// from the authenticated `/app/take/[enrollmentId]` path and from server
+// actions that need the canonical scenario for a given enrollment.
+export async function getScenarioByAssessmentId(
+  assessmentId: string,
+): Promise<Scenario | null> {
+  const client = getClient();
+  const { data: a } = await client
+    .from('assessments')
+    .select('scenario_fk')
+    .eq('id', assessmentId)
+    .single();
+  if (!a || !a.scenario_fk) return null;
+  return getScenarioById(a.scenario_fk as string);
 }
 
 // ============================================================
