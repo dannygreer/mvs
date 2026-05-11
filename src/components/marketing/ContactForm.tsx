@@ -11,17 +11,31 @@ export default function ContactForm() {
 
   if (state?.status === 'ok') {
     return (
-      <div className="border border-cyan-400/40 bg-cyan-400/5 rounded-lg p-8 text-center space-y-2">
-        <p className="text-cyan-300 font-medium">Thanks. We&apos;ll be in touch.</p>
-        <p className="text-zinc-400 text-sm">
-          Expect a response within 2 business days.
+      <div
+        className="bg-zinc-950/40 p-8 text-center space-y-2"
+        style={{ border: '1px solid rgba(1,111,212,0.45)' }}
+      >
+        <p className="mvs-display text-2xl font-bold uppercase tracking-wide text-[#4FA9F0]">
+          Transmission received.
+        </p>
+        <p className="mvs-mono text-xs uppercase tracking-widest text-zinc-400">
+          Response within 2 business days
         </p>
       </div>
     );
   }
 
+  const fieldClass =
+    'mvs-mono w-full px-4 py-3 bg-zinc-950/60 text-zinc-100 placeholder-zinc-600 focus:outline-none focus:bg-zinc-950 disabled:opacity-60 transition-colors';
+  const labelClass =
+    'mvs-mono block text-[10px] font-semibold text-[#4FA9F0] uppercase tracking-[0.25em] mb-2';
+  const fieldStyle = {
+    border: '1px solid rgba(1,111,212,0.30)',
+    borderRadius: 0,
+  } as React.CSSProperties;
+
   return (
-    <form action={action} className="space-y-4">
+    <form action={action} className="space-y-5">
       {/* Honeypot — bots fill all inputs they see; real users never see this. */}
       <div
         aria-hidden="true"
@@ -47,7 +61,7 @@ export default function ContactForm() {
       </div>
 
       <div>
-        <label htmlFor="name" className="block text-xs font-medium text-zinc-400 uppercase tracking-wide mb-2">
+        <label htmlFor="name" className={labelClass}>
           Name
         </label>
         <input
@@ -56,12 +70,13 @@ export default function ContactForm() {
           type="text"
           required
           disabled={pending}
-          className="w-full px-4 py-3 bg-zinc-900/50 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/40 disabled:opacity-60"
+          className={fieldClass}
+          style={fieldStyle}
           placeholder="Your name"
         />
       </div>
       <div>
-        <label htmlFor="email" className="block text-xs font-medium text-zinc-400 uppercase tracking-wide mb-2">
+        <label htmlFor="email" className={labelClass}>
           Email
         </label>
         <input
@@ -70,13 +85,14 @@ export default function ContactForm() {
           type="email"
           required
           disabled={pending}
-          className="w-full px-4 py-3 bg-zinc-900/50 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/40 disabled:opacity-60"
+          className={fieldClass}
+          style={fieldStyle}
           placeholder="you@example.com"
         />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label htmlFor="organization" className="block text-xs font-medium text-zinc-400 uppercase tracking-wide mb-2">
+          <label htmlFor="organization" className={labelClass}>
             Organization
           </label>
           <input
@@ -84,12 +100,13 @@ export default function ContactForm() {
             name="organization"
             type="text"
             disabled={pending}
-            className="w-full px-4 py-3 bg-zinc-900/50 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/40 disabled:opacity-60"
+            className={fieldClass}
+            style={fieldStyle}
             placeholder="Optional"
           />
         </div>
         <div>
-          <label htmlFor="organization_type" className="block text-xs font-medium text-zinc-400 uppercase tracking-wide mb-2">
+          <label htmlFor="organization_type" className={labelClass}>
             Type
           </label>
           <select
@@ -97,7 +114,8 @@ export default function ContactForm() {
             name="organization_type"
             defaultValue=""
             disabled={pending}
-            className="w-full px-4 py-3 bg-zinc-900/50 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/40 disabled:opacity-60"
+            className={fieldClass}
+            style={fieldStyle}
           >
             <option value="">—</option>
             <option value="hospital">Hospital</option>
@@ -108,7 +126,7 @@ export default function ContactForm() {
         </div>
       </div>
       <div>
-        <label htmlFor="message" className="block text-xs font-medium text-zinc-400 uppercase tracking-wide mb-2">
+        <label htmlFor="message" className={labelClass}>
           Message
         </label>
         <textarea
@@ -116,22 +134,30 @@ export default function ContactForm() {
           name="message"
           rows={4}
           disabled={pending}
-          className="w-full px-4 py-3 bg-zinc-900/50 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/40 disabled:opacity-60"
+          className={fieldClass}
+          style={fieldStyle}
           placeholder="Briefly describe your team or use case (optional)"
         />
       </div>
       {state?.status === 'error' && (
-        <p className="text-sm text-red-400">{state.message}</p>
+        <p className="mvs-mono text-xs uppercase tracking-widest text-red-400">
+          {state.message}
+        </p>
       )}
       <button
         type="submit"
         disabled={pending}
-        className="w-full text-lg px-8 py-3 border border-cyan-400 text-cyan-300 rounded-lg hover:bg-cyan-400 hover:text-zinc-950 transition-colors font-medium disabled:opacity-50"
+        className="mvs-mono w-full px-8 py-3 text-sm uppercase tracking-[0.25em] text-[#4FA9F0] hover:text-white hover:bg-[#016FD4] transition-colors disabled:opacity-50"
+        style={{
+          border: '1px solid rgba(1,111,212,0.55)',
+          borderRadius: 0,
+          boxShadow: '0 0 24px rgba(1,111,212,0.20)',
+        }}
       >
-        {pending ? 'Sending…' : 'Request a briefing'}
+        {pending ? 'Transmitting…' : 'Request a briefing ›'}
       </button>
-      <p className="text-xs text-zinc-500 text-center">
-        We&apos;ll respond within 2 business days.
+      <p className="mvs-mono text-[10px] uppercase tracking-widest text-zinc-500 text-center">
+        Response within 2 business days
       </p>
     </form>
   );
