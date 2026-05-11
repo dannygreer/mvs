@@ -4,11 +4,34 @@ export type Phase = 'pre' | 'post' | 'practice';
 export type ResponseCategory = 'controlled' | 'acceptable' | 'premature' | 'unsafe';
 
 // Scenario data types (loaded from DB)
+//
+// Phase 1 Freeze (migration 0012) adds:
+//   - triggersMarkers per option (8-marker JSONB)
+//   - commitmentMode + 9 classification tags per scenario
+
+// Eight locked markers per Phase 1 Freeze doctrine.
+export type MarkerKey =
+  | 'escalation'
+  | 'narrowing'
+  | 'premature_commitment'
+  | 'sequencing_break'
+  | 'drift'
+  | 'intervention'
+  | 'recovery'
+  | 'governance_instability';
+
+export type TriggersMarkers = Partial<Record<MarkerKey, boolean>> & {
+  [key: string]: boolean | undefined;
+};
+
+export type CommitmentMode = 'locked' | 'revisable';
+
 export interface ScenarioOption {
   id: string;
   label: string;
   text: string;
   nextScreenId: string | null;
+  triggersMarkers: TriggersMarkers;
 }
 
 export interface ScenarioScreen {
@@ -21,23 +44,51 @@ export interface ScenarioScreen {
   options: ScenarioOption[];
 }
 
+// Classification tags — pure metadata for cohort analytics.
+export interface ScenarioClassification {
+  domain: 'tactical' | 'medical' | 'leadership' | 'executive' | null;
+  compressionLevel: 'low' | 'moderate' | 'high' | 'extreme' | null;
+  ambiguity: 'low' | 'moderate' | 'high' | null;
+  emotionalLoad: 'low' | 'moderate' | 'high' | null;
+  sensoryComplexity: 'low' | 'moderate' | 'high' | null;
+  authorityConflict: boolean | null;
+  timePressure: 'low' | 'moderate' | 'high' | null;
+  casualtyComplexity: 'none' | 'single' | 'multiple' | 'mass' | null;
+  governanceChallenge: 'individual' | 'team' | 'organizational' | null;
+}
+
 export interface Scenario {
   dbId: string;
   scenarioId: string;
   version: string;
   title: string;
   entryScreenId: string;
+  commitmentMode: CommitmentMode;
+  classification: ScenarioClassification;
   screens: Record<string, ScenarioScreen>;
 }
 
-// Per-screen response captured during quiz
+// Snapshot of the options as displayed at decision time.
+export interface PresentedOption {
+  id: string;
+  label: string;
+  text: string;
+}
+
+// Per-screen response captured during quiz.
+// Phase 1 Freeze: revisable scenarios produce multiple events per screen
+// (original + N revisions); revisionNumber and isRevision identify which.
 export interface ScreenResponse {
   screenId: string;
   optionLabel: string | null;
   optionText: string | null;
+  optionId: string | null;            // selected ScenarioOption.id (null on timeout)
   rtMs: number;
   timedOut: boolean;
   branchPath: string;
+  presentedOptions: PresentedOption[]; // snapshot at decision time
+  isRevision: boolean;                 // false for original commit
+  revisionNumber: number;              // 0 = original, 1+ = revisions
 }
 
 // DB row types

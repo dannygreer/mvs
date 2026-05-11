@@ -435,3 +435,36 @@ Plus low-severity from agent: legacy `/quiz` is unreachable from `/` (intentiona
 - **6 unmerged branches** (Days 2-8). Coordinate merge to main before deploy.
 - Doctor placeholders on marketing page: headshot, full bio, final hero copy. Tracked in `docs/needs_doctor.md`.
 - Lead form CAPTCHA (Cloudflare Turnstile) for stronger abuse protection if honeypot proves insufficient.
+
+---
+
+## Day 10 — Phase 1 Architecture Freeze build (2026-05-11)
+
+**Branch:** `feat/phase1-freeze` (off `main`).
+
+**Shipped:**
+- `supabase/migrations/0012_phase1_freeze.sql` — additive schema for the Phase 1 Freeze doctrine:
+  - `scenarios`: `commitment_mode` (`locked|revisable`, default `locked`) + 9 classification tags (domain, compression_level, ambiguity, emotional_load, sensory_complexity, authority_conflict, time_pressure, casualty_complexity, governance_challenge). `active_threat_v1` backfilled to tactical/extreme/locked.
+  - `screen_options` + `mc_options`: `triggers_markers` JSONB column + 8 expression indexes each (one per locked marker: escalation, narrowing, premature_commitment, sequencing_break, drift, intervention, recovery, governance_instability).
+  - `responses_long`: `event_markers` JSONB, `presented_options` JSONB, `is_revision` bool, `revises_response_event_id` self-FK, `revision_number` int + 8 marker expression indexes + revisions composite index.
+  - `responses_wide`: `outcome_state` text (terminal-screen ID).
+  - Extended partial unique index from `(enrollment_id, question_id)` (0008) to `(enrollment_id, question_id, revision_number)` so race protection holds while revisions are allowed.
+  - Applied to prod via Supabase MCP `apply_migration`. Verified backfill + columns.
+- Runner: `src/components/quiz/ScenarioScreen.tsx` + `Quiz.tsx` branch on `scenario.commitmentMode`. Revisable adds Continue / Change buttons; Change emits a `revise` event, resets `startTimeRef` (revision latency starts fresh), and reopens the screen. Multiple revisions per screen supported. Locked mode is unchanged. No back-nav, no progress signals — doctrine preserved.
+- Server actions (`src/actions/quiz.ts`): all three submission paths copy authoritative `triggers_markers` from DB into `event_markers`; persist `presented_options` snapshot; chain `revises_response_event_id` via `insertResponsesLongChained` in `src/lib/db.ts`. Locked-mode revision payloads rejected before any insert. Multi-choice paths copy markers from `mc_options` (no revision flow).
+- Admin builder (`src/components/admin/ScenarioBuilderTab.tsx`): added scenario metadata editor (commitment_mode toggle + 9 tag selects + tri-state authority_conflict) and per-option marker checkbox grid (8 markers per option) at top of each scenario detail.
+- 6 vitest cases for migration integrity (`tests/phase1_freeze.spec.ts`) + 4 e2e server-action cases (`tests/phase1_e2e.spec.ts`) covering locked-reject, foreign-option-reject, revisable chain + markers + outcome_state, client-marker-tampering override.
+
+**Subagent review findings (general-purpose agent, indep review):**
+- 2 MAJOR (BLOCKER per Day 10 prompt's Phase F criteria) — both fixed:
+  1. Scenario submission paths trusted client-supplied `scenarioId/version` without checking against the enrollment's bound assessment.scenario_fk. Vector: a student enrolled in `active_threat_v1` (locked) could send `scenarioId="<some revisable id>"` to bypass the locked-mode rejection. Fix: `loadCanonicalScenarioForEnrollment` derives canonical scenario from `assessment.scenario_fk` server-side; client-supplied values are logged on mismatch but ignored.
+  2. Scenario submission paths trusted client-supplied `optionId` without checking it belonged to the screen claimed for it. Vector: tampered client supplies a foreign optionId tagged with markers it wants attributed. Fix: `validateScenarioOptionScreens` rejects mismatches by joining `screen_options` → `scenario_screens` and verifying each `(optionId, screenId)` pair.
+- 9 MINOR (logged, not blocking): MC marker editor UI not wired in admin, `getActiveScenario()` in tag-map lookup will mismatch once a second scenario is active, `presented_options` could be re-derived server-side instead of trusted, `q*_rt` semantics in revisable mode, type-system `as never` escape on dispatch, no FK index on `revises_response_event_id` (irrelevant at 190 rows), `responses_long_enrollment_question_uniq` drop+create race window (inside migration tx so fine), useState marker init drift if revalidated, outcome_state for timeouts uses last viewed screen.
+
+**Test results:** 42 vitest cases pass across 4 spec files (rls + invites + phase1_freeze + phase1_e2e). `npm run build` green.
+
+**Deferred to Day 10.5 (per needs_doctor.md):**
+- Seed the 5 new scenarios (Conversation Velocity, Perception Narrowing, Escalation Loop, Team Velocity, Recovery Failure / Drift) — content exists, ~60-min focused session.
+- Wire MC option marker editor in admin (MAJOR-but-not-blocker; analytics can ship without it for the scenario rollout).
+
+**June 4 readiness:** infrastructure is now Phase-1-Freeze-aligned. Doctor can populate per-option markers + scenario classification tags via admin UI as soon as Day 10.5 seeds the 5 scenarios. Locked-vs-revisable doctrine is enforced server-side and tested.

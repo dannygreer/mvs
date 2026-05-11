@@ -52,6 +52,9 @@ async function loadScenarioFromRow(
         label: o.option_label as string,
         text: o.option_text as string,
         nextScreenId: (o.next_screen_id as string) ?? null,
+        // Phase 1 Freeze: triggers_markers JSONB; absent on older rows -> {}
+        triggersMarkers:
+          (o.triggers_markers as Record<string, boolean> | null) ?? {},
       }));
 
     screenMap[scr.screen_id as string] = {
@@ -71,6 +74,36 @@ async function loadScenarioFromRow(
     version: scenario.version as string,
     title: scenario.title as string,
     entryScreenId: scenario.entry_screen_id as string,
+    // Phase 1 Freeze fields. commitment_mode defaults to 'locked' in the DB,
+    // so any pre-0012 scenario row still resolves to a safe default.
+    commitmentMode:
+      ((scenario.commitment_mode as string) ?? 'locked') as
+        | 'locked'
+        | 'revisable',
+    classification: {
+      domain: (scenario.domain as Scenario['classification']['domain']) ?? null,
+      compressionLevel:
+        (scenario.compression_level as Scenario['classification']['compressionLevel']) ??
+        null,
+      ambiguity:
+        (scenario.ambiguity as Scenario['classification']['ambiguity']) ?? null,
+      emotionalLoad:
+        (scenario.emotional_load as Scenario['classification']['emotionalLoad']) ??
+        null,
+      sensoryComplexity:
+        (scenario.sensory_complexity as Scenario['classification']['sensoryComplexity']) ??
+        null,
+      authorityConflict: (scenario.authority_conflict as boolean | null) ?? null,
+      timePressure:
+        (scenario.time_pressure as Scenario['classification']['timePressure']) ??
+        null,
+      casualtyComplexity:
+        (scenario.casualty_complexity as Scenario['classification']['casualtyComplexity']) ??
+        null,
+      governanceChallenge:
+        (scenario.governance_challenge as Scenario['classification']['governanceChallenge']) ??
+        null,
+    },
     screens: screenMap,
   } as Scenario;
 }
@@ -159,6 +192,164 @@ export async function insertResponsesLong(
   rows: Omit<ResponseLongRow, 'id' | 'timestamp'>[],
 ) {
   const { error } = await getClient().from('responses_long').insert(rows);
+  if (error) throw new Error(error.message);
+}
+
+// Phase 1 Freeze: insert revisable-mode events in order, chaining
+// revises_response_event_id to the prior row's id for the same question.
+// Returns the inserted row ids in order (caller can correlate to its input).
+//
+// Why one-at-a-time: we need the postgres-assigned id of row N to write into
+// row N+1's revises_response_event_id. A batched insert with a single RETURNING
+// would yield ids but we'd still need a second UPDATE pass to wire chains. One
+// pass of N inserts is simpler and 6-12 rows per submission is well within
+// budget for the rare scenario flow.
+export async function insertResponsesLongChained(
+  rows: (Omit<ResponseLongRow, 'id' | 'timestamp'> & {
+    is_revision: boolean;
+    revision_number: number;
+    event_markers: Record<string, boolean>;
+    presented_options: { id: string; label: string; text: string }[] | null;
+  })[],
+): Promise<number[]> {
+  const client = getClient();
+  // Track most recent inserted id per (enrollment_id|null, question_id).
+  // A revision_number > 0 row inherits revises_response_event_id from the
+  // last-seen id for the same key.
+  const lastIdByQuestion = new Map<string, number>();
+  const insertedIds: number[] = [];
+
+  for (const row of rows) {
+    const key = `${row.enrollment_id ?? ''}::${row.question_id}`;
+    const revisesId =
+      row.is_revision && lastIdByQuestion.has(key)
+        ? lastIdByQuestion.get(key)!
+        : null;
+    const { data, error } = await client
+      .from('responses_long')
+      .insert({ ...row, revises_response_event_id: revisesId })
+      .select('id')
+      .single();
+    if (error) throw new Error(error.message);
+    const id = data!.id as number;
+    insertedIds.push(id);
+    lastIdByQuestion.set(key, id);
+  }
+  return insertedIds;
+}
+
+// Per-option marker lookup used by server actions to copy authoritative
+// triggers_markers JSONB at submit time. Untrusted client payload is the
+// reason we don't accept event_markers directly from the client.
+export async function getScreenOptionMarkers(
+  optionIds: string[],
+): Promise<Map<string, Record<string, boolean>>> {
+  if (optionIds.length === 0) return new Map();
+  const { data, error } = await getClient()
+    .from('screen_options')
+    .select('id, triggers_markers')
+    .in('id', optionIds);
+  if (error) throw new Error(error.message);
+  const map = new Map<string, Record<string, boolean>>();
+  for (const r of data ?? []) {
+    map.set(
+      r.id as string,
+      (r.triggers_markers as Record<string, boolean> | null) ?? {},
+    );
+  }
+  return map;
+}
+
+export async function getMcOptionMarkers(
+  optionIds: string[],
+): Promise<Map<string, Record<string, boolean>>> {
+  if (optionIds.length === 0) return new Map();
+  const { data, error } = await getClient()
+    .from('mc_options')
+    .select('id, triggers_markers')
+    .in('id', optionIds);
+  if (error) throw new Error(error.message);
+  const map = new Map<string, Record<string, boolean>>();
+  for (const r of data ?? []) {
+    map.set(
+      r.id as string,
+      (r.triggers_markers as Record<string, boolean> | null) ?? {},
+    );
+  }
+  return map;
+}
+
+// Look up a scenario's commitment_mode at submit time. We re-read this from
+// the DB rather than trusting whatever the client sent so a tampered client
+// can't bypass the locked-mode rejection guard.
+export async function getScenarioCommitmentMode(
+  scenarioId: string,
+  version: string,
+): Promise<'locked' | 'revisable' | null> {
+  const { data, error } = await getClient()
+    .from('scenarios')
+    .select('commitment_mode')
+    .eq('scenario_id', scenarioId)
+    .eq('version', version)
+    .single();
+  if (error || !data) return null;
+  return (data.commitment_mode as 'locked' | 'revisable') ?? 'locked';
+}
+
+// Phase 1 Freeze admin: update commitment_mode + 9 classification tags on a
+// scenario row. Any subset of fields can be passed; undefined values are
+// ignored so partial-form saves work.
+export interface ScenarioMetaPatch {
+  commitment_mode?: 'locked' | 'revisable';
+  domain?: 'tactical' | 'medical' | 'leadership' | 'executive' | null;
+  compression_level?: 'low' | 'moderate' | 'high' | 'extreme' | null;
+  ambiguity?: 'low' | 'moderate' | 'high' | null;
+  emotional_load?: 'low' | 'moderate' | 'high' | null;
+  sensory_complexity?: 'low' | 'moderate' | 'high' | null;
+  authority_conflict?: boolean | null;
+  time_pressure?: 'low' | 'moderate' | 'high' | null;
+  casualty_complexity?: 'none' | 'single' | 'multiple' | 'mass' | null;
+  governance_challenge?: 'individual' | 'team' | 'organizational' | null;
+}
+
+export async function updateScenarioMeta(
+  scenarioFk: string,
+  patch: ScenarioMetaPatch,
+) {
+  // Drop undefined to avoid clobbering existing values.
+  const cleaned = Object.fromEntries(
+    Object.entries(patch).filter(([, v]) => v !== undefined),
+  );
+  if (Object.keys(cleaned).length === 0) return;
+  const { error } = await getClient()
+    .from('scenarios')
+    .update(cleaned)
+    .eq('id', scenarioFk);
+  if (error) throw new Error(error.message);
+}
+
+// Phase 1 Freeze admin: update triggers_markers JSONB on a screen_options
+// row. Caller supplies the full 8-marker object (or a partial — keys are
+// merged at the column level, not overwritten wholesale).
+export async function updateScreenOptionMarkers(
+  optionDbId: string,
+  markers: Record<string, boolean>,
+) {
+  const { error } = await getClient()
+    .from('screen_options')
+    .update({ triggers_markers: markers })
+    .eq('id', optionDbId);
+  if (error) throw new Error(error.message);
+}
+
+export async function updateMcOptionMarkers(
+  optionDbId: string,
+  markers: Record<string, boolean>,
+) {
+  const { error } = await getClient()
+    .from('mc_options')
+    .update({ triggers_markers: markers })
+    .eq('id', optionDbId);
   if (error) throw new Error(error.message);
 }
 

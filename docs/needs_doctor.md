@@ -14,12 +14,28 @@ These are blockers for production-quality data. The platform can be built and th
   2. **Residual artifact in Q29.** Reads "The interact becomes reactive, system responsive. What is the FIRST missing?" — likely a stray find-replace artifact. Verify intended wording before launch.
 - Rubric details (80% pass, four-tier performance bands, "outcome trap" disqualifier) captured in `Exam Answer Key and Rubric.docx` — implementation lands during admin polish (Day 9-10).
 
-### 2. Scenario Bank options + answers — 25 scenarios × 4 questions = 100 questions
-Each scenario in `Scenario_Bank_Doctrine_Locked.docx` provides the 4 standardized questions but no multiple-choice options for them. Need:
-- 4 multiple-choice options for each of the 4 standardized questions per scenario (so 16 options per scenario, 400 total)
-- Which option is correct
-- Optionally: which "wrong" answers are *outcome-traps* vs *late-detection* (this populates `response_category`)
-- **Status:** [NEEDS_DOCTOR]
+### 2. ~~Scenario Bank options + answers~~ — RESOLVED 2026-05-10
+- Doctor delivered `MVS Animated Scenario LMS Answer Architecture.docx` with **5 scenarios**: Conversation Velocity, Perception Narrowing, Escalation Loop, Team Velocity, Recovery Failure / Drift. Full options + correct labels included.
+- **Decision (Danny, 2026-05-10):** 5 = complete v1 set. Larger randomized bank is explicit Phase 2 work; engine will support it natively but won't enable randomization for the first cohort.
+- Seed lands in a focused ~60-min session ("Day 10.5") after Day 10 infrastructure ships.
+
+### 2b. NEW — Per-option marker tagging — **admin UI READY 2026-05-11**
+Phase 1 Freeze (per `docs/phase1_freeze.md`) introduces 8 event markers per response (escalation, narrowing, premature_commitment, sequencing_break, drift, intervention, recovery, governance_instability). Day 10 shipped the admin UI: each option on each scenario screen now exposes an 8-checkbox grid in the Scenario Builder tab.
+- For the 5 new scenarios: ~80 options × 8 markers ≈ 640 checkboxes (most false; estimate 1-2 hours of doctor's time). Pending Day 10.5 seed first.
+- For active_threat_v1: ~24 options × 8 markers, same shape — admin can tag now.
+- **MC option markers:** UI not yet wired (server action exists, sibling tab in admin needed). Lower priority since MC has no revision flow and analytics queries can still operate on scenario-option markers.
+- **Status:** [NEEDS_DOCTOR — admin UI ready]
+- **Owner:** Dr. Scully
+
+### 2c. NEW — Scenario classification tags — **admin UI READY 2026-05-11**
+9 metadata tags per scenario (domain, compression_level, ambiguity, emotional_load, sensory_complexity, authority_conflict, time_pressure, casualty_complexity, governance_challenge). Defaulted in migration 0012 (active_threat_v1 backfilled to tactical/extreme/etc.); doctor confirms/refines via admin UI. Each scenario detail now has a "Scenario Metadata" panel at the top with 8 enum selects + 1 tri-state authority_conflict.
+- **Status:** [NEEDS_DOCTOR — admin UI ready]
+- **Owner:** Dr. Scully
+
+### 2d. NEW — Commitment mode per scenario — **admin UI READY 2026-05-11**
+Each scenario declares `commitment_mode` as either `locked` (no answer revision, used for tactical/military/medical) or `revisable` (revisions allowed and tracked, used for leadership/executive). Toggle is at the top of the scenario detail in the Scenario Builder tab. Server-side enforced: a `locked` scenario rejects any submission containing a revision, even with a tampered client.
+- Default proposed: `active_threat_v1` = locked (backfilled); 5 new scenarios = revisable (set during Day 10.5 seed).
+- **Status:** [NEEDS_DOCTOR — confirm defaults]
 - **Owner:** Dr. Scully
 
 ## Important (block accurate analytics)

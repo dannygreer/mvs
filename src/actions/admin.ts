@@ -14,6 +14,10 @@ import {
   deleteOption,
   upsertResponseTag,
   deleteResponseTag,
+  updateScenarioMeta,
+  updateScreenOptionMarkers,
+  updateMcOptionMarkers,
+  type ScenarioMetaPatch,
 } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 
@@ -116,5 +120,34 @@ export async function adminDeleteResponseTag(
 ) {
   await requireAdmin();
   await deleteResponseTag(scenarioFk, screenId, optionLabel);
+  revalidatePath('/mvs/admin');
+}
+
+// Phase 1 Freeze admin actions ----------------------------------------------
+
+export async function adminUpdateScenarioMeta(
+  scenarioFk: string,
+  patch: ScenarioMetaPatch,
+) {
+  await requireAdmin();
+  await updateScenarioMeta(scenarioFk, patch);
+  revalidatePath('/mvs/admin');
+}
+
+export async function adminUpdateScreenOptionMarkers(
+  optionDbId: string,
+  markers: Record<string, boolean>,
+) {
+  await requireAdmin();
+  await updateScreenOptionMarkers(optionDbId, markers);
+  revalidatePath('/mvs/admin');
+}
+
+export async function adminUpdateMcOptionMarkers(
+  optionDbId: string,
+  markers: Record<string, boolean>,
+) {
+  await requireAdmin();
+  await updateMcOptionMarkers(optionDbId, markers);
   revalidatePath('/mvs/admin');
 }

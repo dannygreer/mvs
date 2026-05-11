@@ -2,9 +2,13 @@
 
 import {
   insertResponsesLong,
+  insertResponsesLongChained,
   insertResponseWide,
   getResponseTagMap,
   getActiveScenario,
+  getScreenOptionMarkers,
+  getMcOptionMarkers,
+  getScenarioCommitmentMode,
   deleteResponseByParticipant,
 } from '@/lib/db';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
@@ -30,6 +34,118 @@ export interface SubmitAssessmentData {
   studentId?: string;
 }
 
+// Phase 1 Freeze helpers — used by all scenario submission paths to resolve
+// "final answer per screen" (revisable mode can have N events per screen).
+
+// Audit fix (subagent MAJOR #1, #2): the scenario submission paths must
+// resolve scenarioId/version from the enrollment's bound assessment.scenario_fk
+// rather than trust the client. This also lets us validate that every
+// optionId in the payload actually belongs to the screen claimed for it —
+// closing the marker-tampering vector where a malicious client supplies a
+// foreign optionId tagged with markers it wants attributed to its enrollment.
+//
+// Returns the canonical Scenario row + an (optionId -> screenId) reverse
+// lookup. Throws if the enrollment isn't bound to a scenario assessment.
+async function loadCanonicalScenarioForEnrollment(
+  assessmentId: string,
+): Promise<{
+  scenarioId: string;
+  version: string;
+  scenarioDbId: string;
+  commitmentMode: 'locked' | 'revisable';
+  optionScreenMap: Map<string, string>; // optionId -> screenId
+}> {
+  const admin = adminClient();
+  const { data: a, error: aErr } = await admin
+    .from('assessments')
+    .select('scenario_fk, kind')
+    .eq('id', assessmentId)
+    .single();
+  if (aErr || !a || !a.scenario_fk) {
+    throw new Error('Enrollment is not bound to a scenario assessment');
+  }
+  if (a.kind !== 'scenario') {
+    throw new Error('Enrollment.kind mismatch — not a scenario assessment');
+  }
+  const { data: s, error: sErr } = await admin
+    .from('scenarios')
+    .select('id, scenario_id, version, commitment_mode')
+    .eq('id', a.scenario_fk)
+    .single();
+  if (sErr || !s) throw new Error('Enrollment-bound scenario not found');
+
+  // Build optionId -> screenId map by joining screen_options through
+  // scenario_screens. One round trip, indexed lookup.
+  const { data: screens } = await admin
+    .from('scenario_screens')
+    .select('id, screen_id, screen_options(id)')
+    .eq('scenario_fk', a.scenario_fk);
+  const optionScreenMap = new Map<string, string>();
+  for (const scr of (screens ?? []) as Array<{
+    screen_id: string;
+    screen_options: { id: string }[] | null;
+  }>) {
+    for (const o of scr.screen_options ?? []) {
+      optionScreenMap.set(o.id, scr.screen_id);
+    }
+  }
+
+  return {
+    scenarioId: s.scenario_id as string,
+    version: s.version as string,
+    scenarioDbId: s.id as string,
+    commitmentMode:
+      ((s.commitment_mode as string) ?? 'locked') as 'locked' | 'revisable',
+    optionScreenMap,
+  };
+}
+
+// Validate every payload response's optionId actually belongs to the screen
+// it claims. Timeouts (no optionId) are skipped. Throws on mismatch — same
+// philosophy as the MC validator.
+function validateScenarioOptionScreens(
+  responses: ScreenResponse[],
+  optionScreenMap: Map<string, string>,
+) {
+  for (const r of responses) {
+    if (r.timedOut || !r.optionId) continue;
+    const expectedScreenId = optionScreenMap.get(r.optionId);
+    if (!expectedScreenId) {
+      throw new Error(
+        `optionId ${r.optionId} does not belong to this scenario`,
+      );
+    }
+    if (expectedScreenId !== r.screenId) {
+      throw new Error(
+        `optionId ${r.optionId} belongs to screen ${expectedScreenId}, not ${r.screenId}`,
+      );
+    }
+  }
+}
+
+function collateFinalAnswersByScreen(
+  responses: ScreenResponse[],
+): Map<string, { optionLabel: string | null; rtMs: number }> {
+  const final = new Map<string, { optionLabel: string | null; rtMs: number }>();
+  for (const r of responses) {
+    // Overwrite as we go — the last event for a screenId is the final answer.
+    final.set(r.screenId, { optionLabel: r.optionLabel, rtMs: r.rtMs });
+  }
+  return final;
+}
+
+function uniqueScreenIdsInOrder(responses: ScreenResponse[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const r of responses) {
+    if (!seen.has(r.screenId)) {
+      seen.add(r.screenId);
+      out.push(r.screenId);
+    }
+  }
+  return out;
+}
+
 function adminClient() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -49,6 +165,16 @@ export async function submitAssessment(data: SubmitAssessmentData) {
   // verifies the enrollment belongs to that session user. Atomic completion
   // happens after inserts (see end of function) to prevent race-replay.
   let authedStudentId: string | null = null;
+  // Server-canonical scenario id/version + commitment mode + option->screen
+  // map. Computed once below if enrolled, otherwise we fall back to the
+  // client-supplied values for the legacy anonymous path.
+  let canonicalScenarioId = data.scenarioId;
+  let canonicalScenarioVersion = data.scenarioVersion;
+  let commitmentMode: 'locked' | 'revisable' =
+    (await getScenarioCommitmentMode(data.scenarioId, data.scenarioVersion)) ??
+    'locked';
+  let optionScreenMap = new Map<string, string>();
+
   if (data.enrollmentId) {
     const session = await createSessionClient();
     const {
@@ -60,7 +186,7 @@ export async function submitAssessment(data: SubmitAssessmentData) {
     const client = adminClient();
     const { data: enrollment, error } = await client
       .from('enrollments')
-      .select('id, student_id, completed_at')
+      .select('id, student_id, completed_at, assessment_id')
       .eq('id', data.enrollmentId)
       .single();
     if (error || !enrollment) throw new Error('Enrollment not found');
@@ -73,6 +199,40 @@ export async function submitAssessment(data: SubmitAssessmentData) {
     if (enrollment.completed_at) {
       throw new Error('ENROLLMENT_ALREADY_COMPLETED');
     }
+
+    // Audit fix: derive canonical scenarioId/version + commitment_mode from
+    // the enrollment's bound assessment, NOT from the client payload. Any
+    // mismatch in client-supplied scenarioId is logged but the server value
+    // wins — the client cannot route around the locked-mode rejection by
+    // claiming a different scenario.
+    const canonical = await loadCanonicalScenarioForEnrollment(
+      enrollment.assessment_id as string,
+    );
+    if (
+      data.scenarioId !== canonical.scenarioId ||
+      data.scenarioVersion !== canonical.version
+    ) {
+      console.warn(
+        `[submitAssessment] client scenarioId mismatch: client=${data.scenarioId}/${data.scenarioVersion} server=${canonical.scenarioId}/${canonical.version}; using server value`,
+      );
+    }
+    canonicalScenarioId = canonical.scenarioId;
+    canonicalScenarioVersion = canonical.version;
+    commitmentMode = canonical.commitmentMode;
+    optionScreenMap = canonical.optionScreenMap;
+
+    // Validate every optionId belongs to its claimed screen. Blocks the
+    // marker-tampering vector where a client supplies a foreign optionId.
+    validateScenarioOptionScreens(data.responses, optionScreenMap);
+  }
+
+  // Phase 1 Freeze: locked-mode revision rejection.
+  const hasRevisions = data.responses.some((r) => r.isRevision || r.revisionNumber > 0);
+  if (commitmentMode === 'locked' && hasRevisions) {
+    console.error(
+      `[submitAssessment] locked-mode revision attempt blocked: scenario=${canonicalScenarioId} enrollment=${data.enrollmentId}`,
+    );
+    throw new Error('LOCKED_SCENARIO_REVISION_REJECTED');
   }
 
   // Look up response tags for automatic category assignment
@@ -82,14 +242,25 @@ export async function submitAssessment(data: SubmitAssessmentData) {
     tagMap = await getResponseTagMap(scenario.dbId);
   }
 
-  // Long format: one row per screen response
+  // Look up authoritative per-option markers from screen_options. Never
+  // trust client-supplied event_markers — server is the source of truth.
+  const optionIds = Array.from(
+    new Set(
+      data.responses
+        .map((r) => r.optionId)
+        .filter((id): id is string => typeof id === 'string'),
+    ),
+  );
+  const markerMap = await getScreenOptionMarkers(optionIds);
+
+  // Long format: one row per event (original + revisions in revisable mode).
   const longRows = data.responses.map((r) => ({
     participant_id: data.participantId,
     first_name: data.firstName,
     last_name: data.lastName,
     phase: data.phase,
-    scenario_id: data.scenarioId,
-    scenario_version: data.scenarioVersion,
+    scenario_id: canonicalScenarioId,
+    scenario_version: canonicalScenarioVersion,
     question_id: r.screenId,
     branch_path: r.branchPath,
     option_selected: r.optionLabel,
@@ -100,34 +271,51 @@ export async function submitAssessment(data: SubmitAssessmentData) {
     timed_out: r.timedOut,
     enrollment_id: data.enrollmentId ?? null,
     student_id: authedStudentId,
+    // Phase 1 Freeze columns.
+    event_markers:
+      (r.optionId && markerMap.get(r.optionId)) || {},
+    presented_options: r.presentedOptions ?? null,
+    is_revision: !!r.isRevision,
+    revision_number: r.revisionNumber ?? 0,
   }));
 
-  await insertResponsesLong(longRows);
+  // Chained insert wires revises_response_event_id by previous row id for
+  // the same question. Locked mode submissions still go through this path
+  // (no revisions in the payload -> no chaining occurs).
+  await insertResponsesLongChained(longRows);
 
-  // Wide format: one summary row
+  // Wide format: one summary row. In revisable mode the responses array
+  // contains multiple events per screen; q1..q6 should reflect the *final
+  // committed answer per screen*, not the first event. We walk in order,
+  // keeping the last non-revision-or-final answer per screenId.
+  const finalAnswers = collateFinalAnswersByScreen(data.responses);
+  const orderedScreenIds = uniqueScreenIdsInOrder(data.responses);
+
   const wideRow = {
     participant_id: data.participantId,
     first_name: data.firstName,
     last_name: data.lastName,
     phase: data.phase,
-    scenario_id: data.scenarioId,
-    scenario_version: data.scenarioVersion,
+    scenario_id: canonicalScenarioId,
+    scenario_version: canonicalScenarioVersion,
     branch_path: data.branchPath,
-    q1_answer: data.responses[0]?.optionLabel ?? null,
-    q1_rt: data.responses[0]?.rtMs ?? null,
-    q2_answer: data.responses[1]?.optionLabel ?? null,
-    q2_rt: data.responses[1]?.rtMs ?? null,
-    q3_answer: data.responses[2]?.optionLabel ?? null,
-    q3_rt: data.responses[2]?.rtMs ?? null,
-    q4_answer: data.responses[3]?.optionLabel ?? null,
-    q4_rt: data.responses[3]?.rtMs ?? null,
-    q5_answer: data.responses[4]?.optionLabel ?? null,
-    q5_rt: data.responses[4]?.rtMs ?? null,
-    q6_answer: data.responses[5]?.optionLabel ?? null,
-    q6_rt: data.responses[5]?.rtMs ?? null,
+    q1_answer: finalAnswers.get(orderedScreenIds[0])?.optionLabel ?? null,
+    q1_rt: finalAnswers.get(orderedScreenIds[0])?.rtMs ?? null,
+    q2_answer: finalAnswers.get(orderedScreenIds[1])?.optionLabel ?? null,
+    q2_rt: finalAnswers.get(orderedScreenIds[1])?.rtMs ?? null,
+    q3_answer: finalAnswers.get(orderedScreenIds[2])?.optionLabel ?? null,
+    q3_rt: finalAnswers.get(orderedScreenIds[2])?.rtMs ?? null,
+    q4_answer: finalAnswers.get(orderedScreenIds[3])?.optionLabel ?? null,
+    q4_rt: finalAnswers.get(orderedScreenIds[3])?.rtMs ?? null,
+    q5_answer: finalAnswers.get(orderedScreenIds[4])?.optionLabel ?? null,
+    q5_rt: finalAnswers.get(orderedScreenIds[4])?.rtMs ?? null,
+    q6_answer: finalAnswers.get(orderedScreenIds[5])?.optionLabel ?? null,
+    q6_rt: finalAnswers.get(orderedScreenIds[5])?.rtMs ?? null,
     total_time: data.totalTime,
     enrollment_id: data.enrollmentId ?? null,
     student_id: authedStudentId,
+    // Phase 1 Freeze: terminal-screen ID for scenarios.
+    outcome_state: orderedScreenIds[orderedScreenIds.length - 1] ?? null,
   };
 
   await insertResponseWide(wideRow);
@@ -249,19 +437,58 @@ export async function submitAssessmentByToken(data: SubmitByTokenScenarioData) {
   const lastName = rest.join(' ');
   const participantId = `${(firstName || 'student').toLowerCase()}_${(lastName || 'na').toLowerCase()}_${Date.now()}`;
 
+  // Audit fix: derive canonical scenario from the enrollment's bound
+  // assessment, not from the client payload. Same pattern as the auth path.
+  if (!enrollment.assessment_id)
+    throw new Error('Enrollment missing assessment_id');
+  const canonical = await loadCanonicalScenarioForEnrollment(
+    enrollment.assessment_id,
+  );
+  if (
+    data.scenarioId !== canonical.scenarioId ||
+    data.scenarioVersion !== canonical.version
+  ) {
+    console.warn(
+      `[submitAssessmentByToken] client scenarioId mismatch: client=${data.scenarioId}/${data.scenarioVersion} server=${canonical.scenarioId}/${canonical.version}; using server value`,
+    );
+  }
+  const canonicalScenarioId = canonical.scenarioId;
+  const canonicalScenarioVersion = canonical.version;
+  const commitmentMode = canonical.commitmentMode;
+
+  // Validate every optionId belongs to its claimed screen.
+  validateScenarioOptionScreens(data.responses, canonical.optionScreenMap);
+
+  const hasRevisions = data.responses.some((r) => r.isRevision || r.revisionNumber > 0);
+  if (commitmentMode === 'locked' && hasRevisions) {
+    console.error(
+      `[submitAssessmentByToken] locked-mode revision attempt blocked: scenario=${canonicalScenarioId} token=...${data.token.slice(-6)}`,
+    );
+    throw new Error('LOCKED_SCENARIO_REVISION_REJECTED');
+  }
+
   let tagMap: Record<string, string> = {};
   const scenario = await getActiveScenario();
   if (scenario) {
     tagMap = await getResponseTagMap(scenario.dbId);
   }
 
+  const optionIds = Array.from(
+    new Set(
+      data.responses
+        .map((r) => r.optionId)
+        .filter((id): id is string => typeof id === 'string'),
+    ),
+  );
+  const markerMap = await getScreenOptionMarkers(optionIds);
+
   const longRows = data.responses.map((r) => ({
     participant_id: participantId,
     first_name: firstName || 'Student',
     last_name: lastName || '',
     phase: enrollment.phase,
-    scenario_id: data.scenarioId,
-    scenario_version: data.scenarioVersion,
+    scenario_id: canonicalScenarioId,
+    scenario_version: canonicalScenarioVersion,
     question_id: r.screenId,
     branch_path: r.branchPath,
     option_selected: r.optionLabel,
@@ -272,33 +499,41 @@ export async function submitAssessmentByToken(data: SubmitByTokenScenarioData) {
     timed_out: r.timedOut,
     enrollment_id: enrollment.id,
     student_id: enrollment.student_id,
+    event_markers: (r.optionId && markerMap.get(r.optionId)) || {},
+    presented_options: r.presentedOptions ?? null,
+    is_revision: !!r.isRevision,
+    revision_number: r.revisionNumber ?? 0,
   }));
 
-  await insertResponsesLong(longRows);
+  await insertResponsesLongChained(longRows);
+
+  const finalAnswers = collateFinalAnswersByScreen(data.responses);
+  const orderedScreenIds = uniqueScreenIdsInOrder(data.responses);
 
   const wideRow = {
     participant_id: participantId,
     first_name: firstName || 'Student',
     last_name: lastName || '',
     phase: enrollment.phase,
-    scenario_id: data.scenarioId,
-    scenario_version: data.scenarioVersion,
+    scenario_id: canonicalScenarioId,
+    scenario_version: canonicalScenarioVersion,
     branch_path: data.branchPath,
-    q1_answer: data.responses[0]?.optionLabel ?? null,
-    q1_rt: data.responses[0]?.rtMs ?? null,
-    q2_answer: data.responses[1]?.optionLabel ?? null,
-    q2_rt: data.responses[1]?.rtMs ?? null,
-    q3_answer: data.responses[2]?.optionLabel ?? null,
-    q3_rt: data.responses[2]?.rtMs ?? null,
-    q4_answer: data.responses[3]?.optionLabel ?? null,
-    q4_rt: data.responses[3]?.rtMs ?? null,
-    q5_answer: data.responses[4]?.optionLabel ?? null,
-    q5_rt: data.responses[4]?.rtMs ?? null,
-    q6_answer: data.responses[5]?.optionLabel ?? null,
-    q6_rt: data.responses[5]?.rtMs ?? null,
+    q1_answer: finalAnswers.get(orderedScreenIds[0])?.optionLabel ?? null,
+    q1_rt: finalAnswers.get(orderedScreenIds[0])?.rtMs ?? null,
+    q2_answer: finalAnswers.get(orderedScreenIds[1])?.optionLabel ?? null,
+    q2_rt: finalAnswers.get(orderedScreenIds[1])?.rtMs ?? null,
+    q3_answer: finalAnswers.get(orderedScreenIds[2])?.optionLabel ?? null,
+    q3_rt: finalAnswers.get(orderedScreenIds[2])?.rtMs ?? null,
+    q4_answer: finalAnswers.get(orderedScreenIds[3])?.optionLabel ?? null,
+    q4_rt: finalAnswers.get(orderedScreenIds[3])?.rtMs ?? null,
+    q5_answer: finalAnswers.get(orderedScreenIds[4])?.optionLabel ?? null,
+    q5_rt: finalAnswers.get(orderedScreenIds[4])?.rtMs ?? null,
+    q6_answer: finalAnswers.get(orderedScreenIds[5])?.optionLabel ?? null,
+    q6_rt: finalAnswers.get(orderedScreenIds[5])?.rtMs ?? null,
     total_time: data.totalTime,
     enrollment_id: enrollment.id,
     student_id: enrollment.student_id,
+    outcome_state: orderedScreenIds[orderedScreenIds.length - 1] ?? null,
   };
   await insertResponseWide(wideRow);
 
@@ -374,6 +609,16 @@ export async function submitMcAssessmentByToken(data: SubmitByTokenMcData) {
   const lastName = rest.join(' ');
   const participantId = `${(firstName || 'student').toLowerCase()}_${(lastName || 'na').toLowerCase()}_${Date.now()}`;
 
+  // Phase 1 Freeze: copy authoritative markers from mc_options.
+  const mcOptionIds = Array.from(
+    new Set(
+      data.responses
+        .map((r) => r.optionId)
+        .filter((id): id is string => typeof id === 'string'),
+    ),
+  );
+  const mcMarkerMap = await getMcOptionMarkers(mcOptionIds);
+
   const longRows = data.responses.map((r) => ({
     participant_id: participantId,
     first_name: firstName || 'Student',
@@ -389,9 +634,16 @@ export async function submitMcAssessmentByToken(data: SubmitByTokenMcData) {
     timed_out: r.timedOut,
     enrollment_id: enrollment.id,
     student_id: enrollment.student_id,
+    event_markers: (r.optionId && mcMarkerMap.get(r.optionId)) || {},
+    // MC has no presented_options snapshot today — the 4 options are fixed
+    // per question. We still write the full set so analytics queries don't
+    // need to special-case the column shape.
+    presented_options: null,
+    is_revision: false,
+    revision_number: 0,
   }));
 
-  await insertResponsesLong(longRows);
+  await insertResponsesLongChained(longRows);
 
   const { data: stamped } = await admin
     .from('enrollments')
@@ -530,6 +782,16 @@ export async function submitMcAssessment(data: SubmitMcAssessmentData) {
   const [firstName, ...rest] = fullName.split(' ');
   const lastName = rest.join(' ');
 
+  // Phase 1 Freeze: authoritative marker copy from mc_options.
+  const mcOptionIds = Array.from(
+    new Set(
+      data.responses
+        .map((r) => r.optionId)
+        .filter((id): id is string => typeof id === 'string'),
+    ),
+  );
+  const mcMarkerMap = await getMcOptionMarkers(mcOptionIds);
+
   const longRows = data.responses.map((r) => ({
     participant_id: data.participantId,
     first_name: firstName || 'Student',
@@ -545,9 +807,13 @@ export async function submitMcAssessment(data: SubmitMcAssessmentData) {
     timed_out: r.timedOut,
     enrollment_id: data.enrollmentId,
     student_id: user.id,
+    event_markers: (r.optionId && mcMarkerMap.get(r.optionId)) || {},
+    presented_options: null,
+    is_revision: false,
+    revision_number: 0,
   }));
 
-  await insertResponsesLong(longRows);
+  await insertResponsesLongChained(longRows);
 
   // Atomic completion gate (same pattern as scenario path).
   const { data: stamped, error: stampErr } = await admin

@@ -18,7 +18,76 @@ import {
   adminAddOption,
   adminDeleteScreen,
   adminDeleteOption,
+  adminUpdateScenarioMeta,
+  adminUpdateScreenOptionMarkers,
 } from '@/actions/admin';
+
+// The 8 locked Phase 1 Freeze markers — same order everywhere they're shown.
+const MARKER_KEYS = [
+  'escalation',
+  'narrowing',
+  'premature_commitment',
+  'sequencing_break',
+  'drift',
+  'intervention',
+  'recovery',
+  'governance_instability',
+] as const;
+type MarkerKey = (typeof MARKER_KEYS)[number];
+const MARKER_LABELS: Record<MarkerKey, string> = {
+  escalation: 'Escalation',
+  narrowing: 'Narrowing',
+  premature_commitment: 'Premature Commitment',
+  sequencing_break: 'Sequencing Break',
+  drift: 'Drift',
+  intervention: 'Intervention',
+  recovery: 'Recovery',
+  governance_instability: 'Governance Instability',
+};
+
+// Classification-tag enum value lists, mirroring the migration 0012 checks.
+const CLASSIFICATION_FIELDS = [
+  {
+    key: 'domain' as const,
+    label: 'Domain',
+    options: ['tactical', 'medical', 'leadership', 'executive'] as const,
+  },
+  {
+    key: 'compression_level' as const,
+    label: 'Compression Level',
+    options: ['low', 'moderate', 'high', 'extreme'] as const,
+  },
+  {
+    key: 'ambiguity' as const,
+    label: 'Ambiguity',
+    options: ['low', 'moderate', 'high'] as const,
+  },
+  {
+    key: 'emotional_load' as const,
+    label: 'Emotional Load',
+    options: ['low', 'moderate', 'high'] as const,
+  },
+  {
+    key: 'sensory_complexity' as const,
+    label: 'Sensory Complexity',
+    options: ['low', 'moderate', 'high'] as const,
+  },
+  {
+    key: 'time_pressure' as const,
+    label: 'Time Pressure',
+    options: ['low', 'moderate', 'high'] as const,
+  },
+  {
+    key: 'casualty_complexity' as const,
+    label: 'Casualty Complexity',
+    options: ['none', 'single', 'multiple', 'mass'] as const,
+  },
+  {
+    key: 'governance_challenge' as const,
+    label: 'Governance Challenge',
+    options: ['individual', 'team', 'organizational'] as const,
+  },
+] as const;
 
 // ============================================================
 // Main tab component
@@ -73,6 +142,9 @@ export default function ScenarioBuilderTab({
         </p>
       </div>
 
+      {/* Phase 1 Freeze: scenario meta editor (commitment mode + 9 tags) */}
+      <ScenarioMetaEditor scenario={scenario} />
+
       {/* Screen list */}
       <div className="space-y-3">
         {screens.map((screen) => (
@@ -106,6 +178,124 @@ export default function ScenarioBuilderTab({
           + Add Screen
         </button>
       )}
+    </div>
+  );
+}
+
+// ============================================================
+// Scenario meta editor — commitment mode + 9 classification tags
+// ============================================================
+
+function ScenarioMetaEditor({ scenario }: { scenario: Scenario }) {
+  const [pending, startTransition] = useTransition();
+  const c = scenario.classification;
+
+  const save = (patch: Parameters<typeof adminUpdateScenarioMeta>[1]) => {
+    startTransition(() => adminUpdateScenarioMeta(scenario.dbId, patch));
+  };
+
+  return (
+    <div className="bg-white border border-zinc-200 rounded-lg p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-semibold text-zinc-900">
+          Scenario Metadata (Phase 1 Freeze)
+        </h4>
+        {pending && <span className="text-xs text-zinc-400">Saving…</span>}
+      </div>
+
+      {/* Commitment mode toggle — the doctrine switch. Locked = no answer
+          revisions; Revisable = revisions tracked as additional rows. */}
+      <div>
+        <label className="text-xs font-semibold text-zinc-600 uppercase tracking-wide block mb-2">
+          Commitment Mode
+        </label>
+        <div className="inline-flex rounded-lg border border-zinc-300 overflow-hidden">
+          {(['locked', 'revisable'] as const).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => save({ commitment_mode: mode })}
+              disabled={pending}
+              className={`px-4 py-1.5 text-sm font-medium transition-colors ${
+                scenario.commitmentMode === mode
+                  ? 'bg-zinc-900 text-white'
+                  : 'bg-white text-zinc-700 hover:bg-zinc-50'
+              }`}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-zinc-500 mt-1">
+          {scenario.commitmentMode === 'locked'
+            ? 'No answer revisions. Tactical / acute / high-compression domains.'
+            : 'Revisions allowed and logged. Leadership / executive / educational domains.'}
+        </p>
+      </div>
+
+      {/* Classification tag grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {CLASSIFICATION_FIELDS.map((f) => {
+          const value = c[
+            f.key === 'compression_level'
+              ? 'compressionLevel'
+              : f.key === 'emotional_load'
+                ? 'emotionalLoad'
+                : f.key === 'sensory_complexity'
+                  ? 'sensoryComplexity'
+                  : f.key === 'time_pressure'
+                    ? 'timePressure'
+                    : f.key === 'casualty_complexity'
+                      ? 'casualtyComplexity'
+                      : f.key === 'governance_challenge'
+                        ? 'governanceChallenge'
+                        : (f.key as 'domain' | 'ambiguity')
+          ] as string | null;
+          return (
+            <div key={f.key}>
+              <label className="text-xs font-semibold text-zinc-600 uppercase tracking-wide block mb-1">
+                {f.label}
+              </label>
+              <select
+                value={value ?? ''}
+                disabled={pending}
+                onChange={(e) => {
+                  const v = e.target.value || null;
+                  save({ [f.key]: v as never });
+                }}
+                className="w-full text-sm px-2 py-1.5 border border-zinc-300 rounded disabled:opacity-50"
+              >
+                <option value="">— unset —</option>
+                {f.options.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </div>
+          );
+        })}
+
+        {/* Authority conflict is boolean — separate tri-state toggle */}
+        <div>
+          <label className="text-xs font-semibold text-zinc-600 uppercase tracking-wide block mb-1">
+            Authority Conflict
+          </label>
+          <select
+            value={c.authorityConflict === null ? '' : String(c.authorityConflict)}
+            disabled={pending}
+            onChange={(e) => {
+              const raw = e.target.value;
+              const v = raw === '' ? null : raw === 'true';
+              save({ authority_conflict: v });
+            }}
+            className="w-full text-sm px-2 py-1.5 border border-zinc-300 rounded disabled:opacity-50"
+          >
+            <option value="">— unset —</option>
+            <option value="true">present</option>
+            <option value="false">absent</option>
+          </select>
+        </div>
+      </div>
     </div>
   );
 }
@@ -508,25 +698,84 @@ function OptionEditor({
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-between">
-          <span className="text-sm text-zinc-700">{option.text}</span>
-          <div className="flex items-center gap-2 shrink-0 ml-2">
-            {option.nextScreenId ? (
-              <span className="text-xs text-zinc-400 font-mono">
-                \u2192 {option.nextScreenId}
-              </span>
-            ) : (
-              <span className="text-xs text-zinc-400">(terminal)</span>
-            )}
-            <button
-              onClick={() => setEditing(true)}
-              className="text-xs text-blue-600 hover:text-blue-700"
-            >
-              Edit
-            </button>
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-zinc-700">{option.text}</span>
+            <div className="flex items-center gap-2 shrink-0 ml-2">
+              {option.nextScreenId ? (
+                <span className="text-xs text-zinc-400 font-mono">
+                  \u2192 {option.nextScreenId}
+                </span>
+              ) : (
+                <span className="text-xs text-zinc-400">(terminal)</span>
+              )}
+              <button
+                onClick={() => setEditing(true)}
+                className="text-xs text-blue-600 hover:text-blue-700"
+              >
+                Edit
+              </button>
+            </div>
           </div>
+          {/* Phase 1 Freeze: per-option marker grid */}
+          <OptionMarkerEditor option={option} />
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================================================
+// Per-option marker editor \u2014 8 doctrine markers
+// ============================================================
+//
+// One checkbox per locked marker. Each change calls
+// adminUpdateScreenOptionMarkers with the full merged object so the column
+// always reflects the explicit truth set (omitted keys default to false at
+// query time via `?? false`).
+function OptionMarkerEditor({ option }: { option: ScenarioOption }) {
+  const [markers, setMarkers] = useState<Record<string, boolean>>(
+    () =>
+      Object.fromEntries(MARKER_KEYS.map((k) => [k, !!option.triggersMarkers?.[k]])) as
+        Record<string, boolean>,
+  );
+  const [pending, startTransition] = useTransition();
+
+  const toggle = (key: MarkerKey) => {
+    const next = { ...markers, [key]: !markers[key] };
+    setMarkers(next);
+    startTransition(() => adminUpdateScreenOptionMarkers(option.id, next));
+  };
+
+  return (
+    <div className="mt-1 p-2 bg-zinc-50 border border-zinc-200 rounded">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] uppercase tracking-wider font-semibold text-zinc-500">
+          Markers
+        </span>
+        {pending && <span className="text-[10px] text-zinc-400">Saving\u2026</span>}
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
+        {MARKER_KEYS.map((k) => (
+          <label
+            key={k}
+            className={`flex items-center gap-1 text-xs cursor-pointer px-1 py-0.5 rounded ${
+              markers[k] ? 'bg-cyan-50 text-cyan-900' : 'text-zinc-600'
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={!!markers[k]}
+              onChange={() => toggle(k)}
+              disabled={pending}
+              className="rounded"
+            />
+            <span className="truncate" title={MARKER_LABELS[k]}>
+              {MARKER_LABELS[k]}
+            </span>
+          </label>
+        ))}
+      </div>
     </div>
   );
 }
