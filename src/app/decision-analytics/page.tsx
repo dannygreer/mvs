@@ -50,7 +50,7 @@ export default function DecisionAnalyticsPage() {
       eyebrow="Decision Analytics"
       title="Every decision is data."
       intro="MVS captures not just what was decided, but how. Reaction time, sequence, branching, recovery — measured per decision, surfaced as actionable analytics."
-      headerImage="/marketing/wireframe-mountains-1.png"
+      headerImage="/marketing/wireframe-mountains-1.jpg"
     >
       <SectionFrame code="SECT.01 / AT A GLANCE">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 items-start">

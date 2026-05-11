@@ -38,7 +38,7 @@ export default function AboutPage() {
     <PageShell
       eyebrow="About"
       title="Frontline experience, made measurable."
-      headerImage="/marketing/wireframe-mountains-3.png"
+      headerImage="/marketing/wireframe-mountains-3.jpg"
     >
       <SectionFrame code="SECT.01 / MISSION">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 items-start">

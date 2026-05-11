@@ -35,7 +35,7 @@ export default function CertificationPage() {
       eyebrow="Certification"
       title="A measurable standard."
       intro="MVS certification is more than a one-time test. It's an ongoing measurement of how decisions form under pressure — baseline, training, post-assessment, and a recertification cycle that keeps the standard real."
-      headerImage="/marketing/wireframe-mountains-2.png"
+      headerImage="/marketing/wireframe-mountains-2.jpg"
     >
       <SectionFrame code="SECT.01 / HOW IT WORKS">
         <div className="mb-3">
