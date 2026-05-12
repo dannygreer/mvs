@@ -59,10 +59,10 @@ export default function McMarkersTab({
     <div className="p-6 space-y-6">
       <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-4 flex items-center justify-between">
         <div>
-          <h3 className="font-semibold text-zinc-900">MC Option Markers</h3>
+          <h3 className="font-semibold text-zinc-900">Test Bank — Option Markers</h3>
           <p className="text-sm text-zinc-500 mt-1">
-            Tag each option with the 8 doctrine markers. Empty = no markers
-            fire for that option.
+            50-question certification exam. Tag each option with the 8
+            doctrine markers — empty means no markers fire for that option.
           </p>
         </div>
         {assessments.length > 1 && (

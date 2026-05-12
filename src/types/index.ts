@@ -37,7 +37,9 @@ export interface ScenarioOption {
 export interface ScenarioScreen {
   id: string;
   dbId: string;
-  text: string;
+  // Day 11.5: nullable. Active-threat carries the branching narrative
+  // here; recognition-test scenarios are null (setupText replaces it).
+  text: string | null;
   prompt: string;
   timerSeconds: number;
   sortOrder: number;
@@ -66,12 +68,16 @@ export interface Scenario {
   commitmentMode: CommitmentMode;
   classification: ScenarioClassification;
   screens: Record<string, ScenarioScreen>;
-  // Day 11: when set, the runner shows the MP4 before Q1 and skips the
-  // 'reading' step (screen_text becomes redundant once the video delivered
-  // the situation). Both fields null on text-only scenarios like
-  // active_threat_v1.
+  // Day 11: when set, the runner shows the MP4 before Q1 and skips both
+  // 'setup' and per-screen 'reading' (the video conveys the situation).
   videoUrl: string | null;
   videoDurationSeconds: number | null;
+  // Day 11.5: scenario-level context text. Recognition-test scenarios
+  // (Conversation Velocity, Perception Narrowing, Escalation Loop, Team
+  // Velocity, Recovery Drift) show this once before Q1. Active-threat is
+  // null here — its per-screen text evolves the branching narrative and
+  // stays on each scenario_screens row.
+  setupText: string | null;
 }
 
 // Snapshot of the options as displayed at decision time.

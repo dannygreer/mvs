@@ -19,6 +19,7 @@ import {
   adminDeleteScreen,
   adminDeleteOption,
   adminUpdateScenarioMeta,
+  adminUpdateScenarioSetupText,
   adminUpdateScreenOptionMarkers,
 } from '@/actions/admin';
 
@@ -142,6 +143,13 @@ export default function ScenarioBuilderTab({
         </p>
       </div>
 
+      {/* Day 11.5: scenario-level setup text. Shown for recognition-test
+          scenarios (the 5 new ones with setupText populated). Hidden for
+          active-threat which uses per-screen branching narrative. */}
+      {scenario.setupText !== null && (
+        <SetupTextEditor scenario={scenario} />
+      )}
+
       {/* Phase 1 Freeze: scenario meta editor (commitment mode + 9 tags) */}
       <ScenarioMetaEditor scenario={scenario} />
 
@@ -159,6 +167,7 @@ export default function ScenarioBuilderTab({
             }
             allScreenIds={allScreenIds}
             scenarioFk={scenario.dbId}
+            usesSetupText={scenario.setupText !== null}
           />
         ))}
       </div>
@@ -177,6 +186,82 @@ export default function ScenarioBuilderTab({
         >
           + Add Screen
         </button>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// Day 11.5: scenario-level setup text editor (recognition-test scenarios)
+// ============================================================
+
+function SetupTextEditor({ scenario }: { scenario: Scenario }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(scenario.setupText ?? '');
+  const [pending, startTransition] = useTransition();
+
+  const save = () => {
+    startTransition(async () => {
+      // Trim whitespace; treat whitespace-only as null so the admin can
+      // intentionally clear the field by deleting the contents.
+      const trimmed = text.trim();
+      await adminUpdateScenarioSetupText(scenario.dbId, trimmed || null);
+      setEditing(false);
+    });
+  };
+
+  return (
+    <div className="bg-white border border-zinc-200 rounded-lg p-4 space-y-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <h4 className="text-sm font-semibold text-zinc-900">Setup Text</h4>
+          <p className="text-xs text-zinc-500 mt-0.5">
+            Shown to the student once before Q1. Skipped if the scenario has a
+            video.
+          </p>
+        </div>
+        {pending && <span className="text-xs text-zinc-400">Saving…</span>}
+        {!editing && (
+          <button
+            onClick={() => setEditing(true)}
+            className="text-xs text-blue-600 hover:text-blue-700"
+          >
+            Edit
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <div className="space-y-2">
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={5}
+            className="w-full px-3 py-2 border border-zinc-300 rounded text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={save}
+              disabled={pending}
+              className="px-3 py-1 bg-zinc-900 text-white rounded text-xs font-medium disabled:bg-zinc-400"
+            >
+              {pending ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              onClick={() => {
+                setText(scenario.setupText ?? '');
+                setEditing(false);
+              }}
+              className="px-3 py-1 border border-zinc-300 rounded text-xs"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-zinc-700 whitespace-pre-line">
+          {scenario.setupText ?? ''}
+        </p>
       )}
     </div>
   );
@@ -342,12 +427,16 @@ function ScreenCard({
   onToggle,
   allScreenIds,
   scenarioFk,
+  usesSetupText,
 }: {
   screen: ScenarioScreen;
   isExpanded: boolean;
   onToggle: () => void;
   allScreenIds: string[];
   scenarioFk: string;
+  // Day 11.5: scenario uses scenario-level setup_text; per-screen text is
+  // null and the ScreenTextEditor should render a "not used" notice.
+  usesSetupText: boolean;
 }) {
   const [delPending, startDel] = useTransition();
 
@@ -363,7 +452,11 @@ function ScreenCard({
             {screen.id}
           </span>
           <span className="text-sm text-zinc-500 truncate">
-            {screen.text.substring(0, 80)}...
+            {/* Day 11.5: preview the prompt (varies per question) rather
+                than screen_text (which is null for recognition-test
+                scenarios, or duplicate across rows for the old shape). */}
+            {(screen.prompt || screen.text || '(no prompt)').substring(0, 80)}
+            {((screen.prompt || screen.text || '').length > 80 ? '…' : '')}
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0 ml-2">
@@ -375,7 +468,7 @@ function ScreenCard({
       {/* Expanded content */}
       {isExpanded && (
         <div className="border-t border-zinc-200 p-4 space-y-4 bg-zinc-50">
-          <ScreenTextEditor screen={screen} />
+          <ScreenTextEditor screen={screen} usesSetupText={usesSetupText} />
           <PromptEditor screen={screen} />
           <TimerEditor screen={screen} />
 
@@ -421,10 +514,29 @@ function ScreenCard({
 // Screen text editor
 // ============================================================
 
-function ScreenTextEditor({ screen }: { screen: ScenarioScreen }) {
+function ScreenTextEditor({
+  screen,
+  usesSetupText,
+}: {
+  screen: ScenarioScreen;
+  usesSetupText: boolean;
+}) {
   const [editing, setEditing] = useState(false);
-  const [text, setText] = useState(screen.text);
+  const [text, setText] = useState(screen.text ?? '');
   const [pending, startTransition] = useTransition();
+
+  // Day 11.5: scenario uses scenario-level setup_text. Per-screen text is
+  // intentionally null. Surface that explicitly so the admin doesn't paste
+  // setup back into the wrong column.
+  if (usesSetupText) {
+    return (
+      <div className="text-xs text-zinc-500 italic">
+        Screen Text — not used. This scenario uses scenario-level{' '}
+        <span className="font-mono not-italic">setup_text</span> (edit at
+        the top of this builder).
+      </div>
+    );
+  }
 
   const save = () => {
     startTransition(async () => {
@@ -448,7 +560,7 @@ function ScreenTextEditor({ screen }: { screen: ScenarioScreen }) {
           </button>
         </div>
         <p className="text-sm text-zinc-600 whitespace-pre-line">
-          {screen.text}
+          {screen.text ?? ''}
         </p>
       </div>
     );
@@ -475,7 +587,7 @@ function ScreenTextEditor({ screen }: { screen: ScenarioScreen }) {
         </button>
         <button
           onClick={() => {
-            setText(screen.text);
+            setText(screen.text ?? '');
             setEditing(false);
           }}
           className="px-3 py-1 border border-zinc-300 rounded text-xs"

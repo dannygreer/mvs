@@ -37,7 +37,7 @@ export function ReadScreen({ screen, screenNumber, onContinue }: ReadScreenProps
             Scenario
           </h2>
           <p className="text-xl text-zinc-900 leading-relaxed whitespace-pre-line">
-            {screen.text}
+            {screen.text ?? ''}
           </p>
         </div>
 

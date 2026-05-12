@@ -26,7 +26,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'responses', label: 'Responses' },
   { id: 'scenario', label: 'Scenario Builder' },
   { id: 'tagging', label: 'Response Tagging' },
-  { id: 'mc_markers', label: 'MC Markers' },
+  { id: 'mc_markers', label: 'Test Bank' },
   { id: 'summary', label: 'Summary' },
 ];
 

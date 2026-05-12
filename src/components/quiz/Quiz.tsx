@@ -13,12 +13,37 @@ import { ReadScreen, AnswerScreen, type AnswerEvent } from './ScenarioScreen';
 import ResultsScreen from './ResultsScreen';
 import ScenarioVideo from './ScenarioVideo';
 
-// Day 11: scenarios with `videoUrl` open in the 'video' step. When the
-// video ends, the runner advances directly to 'answering' (skipping the
-// 'reading' step — the video already delivered the situation; the
-// `screen_text` would be redundant post-video). Text-only scenarios like
-// active_threat_v1 keep the original 'reading' → 'answering' flow.
-type Step = 'title' | 'video' | 'reading' | 'answering' | 'results';
+// Step state machine. Priority is video > setup > per-screen reading:
+//   - videoUrl set      → 'video' before Q1, no reading between Qs.
+//   - setupText set     → 'setup' once before Q1, no reading between Qs.
+//   - neither (active-  → 'reading' before each Q (branching narrative).
+//     threat path)
+// Day 11 added 'video'; Day 11.5 added 'setup'.
+type Step =
+  | 'title'
+  | 'video'
+  | 'setup'
+  | 'reading'
+  | 'answering'
+  | 'results';
+
+function pickStartingStep(scenario: Scenario, isEnrolled: boolean): Step {
+  if (!isEnrolled) return 'title';
+  if (scenario.videoUrl) return 'video';
+  if (scenario.setupText !== null) return 'setup';
+  return 'reading';
+}
+
+function pickStepBetweenScreens(scenario: Scenario): Step {
+  // What runs between question N and question N+1.
+  // Recognition-test (setupText) scenarios: skip 'reading' — the setup
+  // covered context, and per-screen text is null anyway.
+  // Video scenarios likewise skip reading (the video doesn't replay).
+  // Active-threat (per-screen narrative): show 'reading' for the next
+  // screen's branching text.
+  if (scenario.videoUrl || scenario.setupText !== null) return 'answering';
+  return 'reading';
+}
 
 interface QuizProps {
   scenario: Scenario | null;
@@ -46,15 +71,11 @@ export default function Quiz({
   token,
 }: QuizProps) {
   const isEnrolled = !!enrollmentId || !!token;
-  // Initial step: video-led scenarios open in 'video'; everything else keeps
-  // the prior behavior (reading for enrolled flow, title for anonymous walk-in).
-  const initialStep: Step = scenario?.videoUrl
-    ? isEnrolled
-      ? 'video'
-      : 'title'
-    : isEnrolled
-      ? 'reading'
-      : 'title';
+  // Initial step decided by pickStartingStep (video > setup > reading,
+  // with 'title' fallback for the anonymous walk-in path).
+  const initialStep: Step = scenario
+    ? pickStartingStep(scenario, isEnrolled)
+    : 'title';
   const [step, setStep] = useState<Step>(initialStep);
   const [firstName, setFirstName] = useState(prefillFirstName ?? '');
   const [lastName, setLastName] = useState(prefillLastName ?? '');
@@ -91,8 +112,11 @@ export default function Quiz({
       setBranchPath('');
       setResponses([]);
       revisionCountRef.current = 0;
-      // Video-led scenarios go to 'video'; text-only go to 'reading'.
-      setStep(scenario.videoUrl ? 'video' : 'reading');
+      // After title (anonymous walk-in), enter the intro step that matches
+      // this scenario's shape.
+      if (scenario.videoUrl) setStep('video');
+      else if (scenario.setupText !== null) setStep('setup');
+      else setStep('reading');
     },
     [scenario],
   );
@@ -106,6 +130,13 @@ export default function Quiz({
   // Q1's RT correctly begins from the moment the question UI paints, NOT
   // from page load.
   const handleVideoEnded = useCallback(() => {
+    setStep('answering');
+  }, []);
+
+  // Day 11.5: setup screen continue → directly to 'answering'. Same RT
+  // semantics as the video path — Q1's startTimeRef anchors at AnswerScreen
+  // mount, not at setup-screen mount.
+  const handleSetupContinue = useCallback(() => {
     setStep('answering');
   }, []);
 
@@ -175,7 +206,9 @@ export default function Quiz({
       if (nextScreenId && scenario.screens[nextScreenId]) {
         setCurrentScreenId(nextScreenId);
         setScreenIndex((prev) => prev + 1);
-        setStep('reading');
+        // Day 11.5: video / setup-text scenarios bypass per-screen reading.
+        // Active-threat (per-screen branching narrative) still uses 'reading'.
+        setStep(pickStepBetweenScreens(scenario));
         return;
       }
 
@@ -233,6 +266,38 @@ export default function Quiz({
   switch (step) {
     case 'title':
       return <TitleScreen onContinue={handleTitle} />;
+    case 'setup': {
+      // Recognition-test scenarios (Conversation Velocity, etc.) show
+      // scenario.setupText once with a Continue button. Q1's RT starts
+      // when AnswerScreen mounts after this step transitions, NOT here.
+      if (!scenario.setupText) {
+        // Defensive fallback: a scenario shouldn't reach 'setup' without
+        // setupText, but if it does, go straight to reading.
+        setStep('reading');
+        return null;
+      }
+      return (
+        <div className="relative flex flex-col items-center justify-center flex-1 px-6 py-12">
+          <div className="absolute inset-0 bg-zinc-100" />
+          <div className="relative w-full max-w-2xl space-y-8">
+            <div className="bg-white border border-zinc-200 rounded-xl p-8 space-y-4">
+              <h2 className="text-lg font-medium text-zinc-500 uppercase tracking-wide">
+                Scenario
+              </h2>
+              <p className="text-xl text-zinc-900 leading-relaxed whitespace-pre-line">
+                {scenario.setupText}
+              </p>
+            </div>
+            <button
+              onClick={handleSetupContinue}
+              className="w-full py-3 rounded-lg font-medium text-lg transition-colors bg-zinc-900 text-white hover:bg-zinc-800"
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      );
+    }
     case 'video': {
       if (!scenario.videoUrl || scenario.videoDurationSeconds == null) {
         // Defensive: should never happen — initialStep guards this — but if
