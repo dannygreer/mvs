@@ -29,15 +29,22 @@ export default async function OrgsListPage() {
       <header className="bg-white border-b border-zinc-200">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div>
-            <Link href="/mvs/admin" className="text-xs text-zinc-500 hover:text-zinc-700">
+            <Link
+              href="/mvs/admin"
+              className="mvs-mono text-[11px] uppercase tracking-widest text-zinc-500 hover:text-zinc-700"
+            >
               ← Admin
             </Link>
-            <h1 className="text-xl font-bold text-zinc-900">Organizations</h1>
-            <p className="text-sm text-zinc-500">{orgs.length} total</p>
+            <h1 className="mvs-display text-2xl font-bold uppercase tracking-wide text-zinc-900 mt-1">
+              Organizations
+            </h1>
+            <p className="mvs-mono text-[11px] uppercase tracking-widest text-zinc-500 mt-1">
+              {orgs.length} total
+            </p>
           </div>
           <Link
             href="/mvs/admin/orgs/new"
-            className="px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"
+            className="mvs-mono px-4 py-2 bg-zinc-900 text-white text-[11px] uppercase tracking-[0.18em] hover:bg-zinc-800 transition-colors"
           >
             + New org
           </Link>

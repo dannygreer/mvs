@@ -53,18 +53,20 @@ export default async function OrgDetailPage({
           <div>
             <Link
               href="/mvs/admin/orgs"
-              className="text-xs text-zinc-500 hover:text-zinc-700"
+              className="mvs-mono text-[11px] uppercase tracking-widest text-zinc-500 hover:text-zinc-700"
             >
               ← Organizations
             </Link>
-            <h1 className="text-xl font-bold text-zinc-900">{org.name}</h1>
-            <p className="text-xs text-zinc-500">
+            <h1 className="mvs-display text-2xl font-bold uppercase tracking-wide text-zinc-900 mt-1">
+              {org.name}
+            </h1>
+            <p className="mvs-mono text-[11px] uppercase tracking-widest text-zinc-500 mt-1">
               Updated {new Date(org.updated_at).toLocaleString()}
             </p>
           </div>
           <Link
             href={`/mvs/admin/orgs/${id}/invite`}
-            className="px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"
+            className="mvs-mono px-4 py-2 bg-zinc-900 text-white text-[11px] uppercase tracking-[0.18em] hover:bg-zinc-800 transition-colors"
           >
             + Invite students
           </Link>
@@ -73,7 +75,7 @@ export default async function OrgDetailPage({
 
       <main className="max-w-5xl mx-auto px-6 py-8 space-y-6">
         <section className="bg-white border border-zinc-200 rounded-xl p-6">
-          <h2 className="text-sm font-semibold text-zinc-900 uppercase tracking-wide mb-4">
+          <h2 className="mvs-mono text-xs font-semibold text-zinc-900 uppercase tracking-[0.22em] mb-4">
             Details
           </h2>
           <OrgForm
@@ -84,7 +86,7 @@ export default async function OrgDetailPage({
         </section>
 
         <section className="bg-white border border-zinc-200 rounded-xl p-6">
-          <h2 className="text-sm font-semibold text-zinc-900 uppercase tracking-wide mb-3">
+          <h2 className="mvs-mono text-xs font-semibold text-zinc-900 uppercase tracking-[0.22em] mb-3">
             Pre-assessment invites
           </h2>
           <SendPreInvitesPanel
@@ -95,7 +97,7 @@ export default async function OrgDetailPage({
 
         <section className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
           <div className="px-6 py-4 border-b border-zinc-200">
-            <h2 className="text-sm font-semibold text-zinc-900 uppercase tracking-wide mb-1">
+            <h2 className="mvs-mono text-xs font-semibold text-zinc-900 uppercase tracking-[0.22em] mb-1">
               Org admins
             </h2>
             <p className="text-xs text-zinc-500">
@@ -147,7 +149,7 @@ export default async function OrgDetailPage({
 
         <section className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
           <div className="px-6 py-4 border-b border-zinc-200 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-zinc-900 uppercase tracking-wide">
+            <h2 className="mvs-mono text-xs font-semibold text-zinc-900 uppercase tracking-[0.22em]">
               Roster
             </h2>
             <span className="text-xs text-zinc-500">{roster.length} students</span>

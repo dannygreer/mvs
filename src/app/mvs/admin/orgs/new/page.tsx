@@ -14,11 +14,13 @@ export default async function NewOrgPage() {
         <div className="max-w-3xl mx-auto px-6 py-4">
           <Link
             href="/mvs/admin/orgs"
-            className="text-xs text-zinc-500 hover:text-zinc-700"
+            className="mvs-mono text-[11px] uppercase tracking-widest text-zinc-500 hover:text-zinc-700"
           >
             ← Organizations
           </Link>
-          <h1 className="text-xl font-bold text-zinc-900">New organization</h1>
+          <h1 className="mvs-display text-2xl font-bold uppercase tracking-wide text-zinc-900 mt-1">
+            New organization
+          </h1>
         </div>
       </header>
 

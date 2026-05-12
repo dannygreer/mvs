@@ -47,12 +47,16 @@ export default async function LeadsPage() {
           <div>
             <Link
               href="/mvs/admin"
-              className="text-xs text-zinc-500 hover:text-zinc-700"
+              className="mvs-mono text-[11px] uppercase tracking-widest text-zinc-500 hover:text-zinc-700"
             >
               ← Admin
             </Link>
-            <h1 className="text-xl font-bold text-zinc-900">Leads</h1>
-            <p className="text-sm text-zinc-500">{leads.length} total</p>
+            <h1 className="mvs-display text-2xl font-bold uppercase tracking-wide text-zinc-900 mt-1">
+              Leads
+            </h1>
+            <p className="mvs-mono text-[11px] uppercase tracking-widest text-zinc-500 mt-1">
+              {leads.length} total
+            </p>
           </div>
         </div>
       </header>
