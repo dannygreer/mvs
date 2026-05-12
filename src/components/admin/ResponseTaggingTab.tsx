@@ -70,7 +70,8 @@ export default function ResponseTaggingTab({
                 {screen.id}
               </span>
               <span className="text-sm text-zinc-500 ml-2">
-                {screen.text.substring(0, 60)}...
+                {(screen.prompt || screen.text || '').substring(0, 60)}
+                {((screen.prompt || screen.text || '').length > 60 ? '…' : '')}
               </span>
             </div>
             <div className="p-4 space-y-2">

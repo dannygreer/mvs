@@ -15,6 +15,7 @@ import {
   upsertResponseTag,
   deleteResponseTag,
   updateScenarioMeta,
+  updateScenarioSetupText,
   updateScreenOptionMarkers,
   updateMcOptionMarkers,
   type ScenarioMetaPatch,
@@ -131,6 +132,16 @@ export async function adminUpdateScenarioMeta(
 ) {
   await requireAdmin();
   await updateScenarioMeta(scenarioFk, patch);
+  revalidatePath('/mvs/admin');
+}
+
+// Day 11.5: scenario-level setup_text editor (recognition-test scenarios).
+export async function adminUpdateScenarioSetupText(
+  scenarioFk: string,
+  setupText: string | null,
+) {
+  await requireAdmin();
+  await updateScenarioSetupText(scenarioFk, setupText);
   revalidatePath('/mvs/admin');
 }
 

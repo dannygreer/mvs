@@ -540,3 +540,41 @@ Plus low-severity from agent: legacy `/quiz` is unreachable from `/` (intentiona
 - `presented_options` server-rederivation (Day 10 known gap; only matters once randomization ships).
 - Redundant `screen_text` on Q2/Q3/Q4 of video-led scenarios (seed authoring decision, not a code fix).
 - Vitest cleanup for `getWalkInScenario is stable even when another scenario is is_active=true` — currently writes via `try/finally`. If vitest gets killed mid-test, the prod `is_active` flag stays toggled. Recommend a `beforeAll` reset in a follow-up.
+
+---
+
+## Day 11.5 — Setup text refactor + Test Bank rename (2026-05-12)
+
+**Branch:** `feat/setup-text-refactor` (off main).
+
+**Shipped:**
+- `supabase/migrations/0014_setup_text_on_scenario.sql` — promotes scenario setup text from per-screen duplication to a single `scenarios.setup_text` column. Backfills from each scenario's Q1 `screen_text`; nulls out the redundant per-screen rows on the 5 recognition-test scenarios; relaxes `scenario_screens.screen_text` from NOT NULL. Active-threat untouched.
+- **Cross-table invariant trigger** (`scenario_screen_text_invariant`): a screen MAY have null `screen_text` ONLY if the parent scenario carries `setup_text`. Restores the lost NOT NULL doctrine guarantee for active_threat-style branching scenarios while allowing the 5 new scenarios to use the scenario-level field. Verified: trigger correctly rejects `INSERT (active_threat_v1, ..., screen_text=NULL)`.
+- `src/types/index.ts`: `Scenario.setupText: string | null`, `ScenarioScreen.text: string | null` (nullable now).
+- `src/lib/db.ts`: `loadScenarioFromRow` surfaces `setup_text` and handles nullable `screen_text`. New `updateScenarioSetupText`.
+- `src/actions/admin.ts`: new `adminUpdateScenarioSetupText` server action (super_admin gated).
+- `src/components/admin/ScenarioBuilderTab.tsx`:
+  - New top-level `SetupTextEditor` panel, shown only when `scenario.setupText !== null` (hidden for active-threat).
+  - Screen row preview switches from `screen_text` (4 identical lines on the new scenarios) to `screen_prompt` (4 distinct questions).
+  - Inside expanded screen panels, `ScreenTextEditor` renders a "not used — scenario uses setup_text" notice instead of an editable input on the 5 new scenarios.
+  - Trim whitespace on setup_text save; empty/whitespace-only saves as null.
+- `src/components/admin/ResponseTaggingTab.tsx`: defensive null handling on `screen.text.substring` (previously would have crashed on nulled rows).
+- `src/components/quiz/Quiz.tsx`: new `'setup'` step in the Step union. Decision helpers `pickStartingStep` + `pickStepBetweenScreens` encode priority **video > setup > reading**. Recognition-test scenarios show `setup` once, then go straight through Q1→Q4 in `'answering'` (no per-screen reading interludes). active_threat keeps the original `'reading' → 'answering' → 'reading' → ...` flow.
+- `src/components/quiz/ScenarioScreen.tsx`: null-safe rendering of `screen.text` for active-threat's branching narrative.
+- Bonus: **Test Bank rename** — the Day 11 "MC Markers" admin tab is now labeled "Test Bank" (clearer per-user feedback).
+
+**Subagent review findings — all addressed:**
+- MAJOR (unconditional DROP NOT NULL weakened the active_threat invariant): added a cross-table trigger `scenario_screen_text_invariant` that enforces "screen_text NOT NULL when parent.setup_text IS NULL". Applied to prod; verified the trigger blocks an attempted bad insert.
+- MINOR (dead `pickStepAfterIntro` helper): removed.
+- MINOR (whitespace-only setup_text saves as " "): trim before save; whitespace → null.
+- MINOR (backfill re-run footgun nulls out screen_text unconditionally): noted but not changed — the migration is one-time and no current code path re-runs it.
+
+**Test results:** 57 vitest cases pass across 7 spec files. `npm run build` green.
+
+**Day 11.5 acceptance:**
+- ✓ Migration applied; setup_text populated on 5 scenarios; screen_text nulled on those 5 scenarios' screens; active-threat untouched (15 screens, all non-null screen_text).
+- ✓ Admin Scenario Builder shows distinct prompt previews per row.
+- ✓ Student runner shows setup once for recognition-test scenarios; per-screen narrative for active-threat.
+- ✓ All RLS / existing tests still green.
+
+**Deferred:** backfill idempotency footgun (one-time migration; future schema-only re-runs are fine).

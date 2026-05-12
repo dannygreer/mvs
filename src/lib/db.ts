@@ -60,7 +60,7 @@ async function loadScenarioFromRow(
     screenMap[scr.screen_id as string] = {
       id: scr.screen_id as string,
       dbId: scr.id as string,
-      text: scr.screen_text as string,
+      text: (scr.screen_text as string | null) ?? null,
       prompt: (scr.screen_prompt as string) ?? '',
       timerSeconds: scr.timer_seconds as number,
       sortOrder: scr.sort_order as number,
@@ -109,6 +109,9 @@ async function loadScenarioFromRow(
     videoUrl: (scenario.video_url as string | null) ?? null,
     videoDurationSeconds:
       (scenario.video_duration_seconds as number | null) ?? null,
+    // Day 11.5 scenario-level setup text. Recognition-test scenarios
+    // populate this; active-threat leaves it null and keeps per-screen text.
+    setupText: (scenario.setup_text as string | null) ?? null,
   } as Scenario;
 }
 
@@ -447,6 +450,18 @@ export async function updateScenarioMeta(
   const { error } = await getClient()
     .from('scenarios')
     .update(cleaned)
+    .eq('id', scenarioFk);
+  if (error) throw new Error(error.message);
+}
+
+// Day 11.5: scenario-level setup_text (recognition-test scenarios only).
+export async function updateScenarioSetupText(
+  scenarioFk: string,
+  setupText: string | null,
+) {
+  const { error } = await getClient()
+    .from('scenarios')
+    .update({ setup_text: setupText })
     .eq('id', scenarioFk);
   if (error) throw new Error(error.message);
 }
