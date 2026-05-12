@@ -53,9 +53,9 @@ const plexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "MVS",
   description: "MVS",
-  icons: {
-    icon: "/mvs-icon.png",
-  },
+  // Favicon auto-detected from src/app/icon.png + src/app/apple-icon.png by
+  // Next.js App Router. No explicit `icons` field — that would override and
+  // break the file-based convention.
 };
 
 export default function RootLayout({
