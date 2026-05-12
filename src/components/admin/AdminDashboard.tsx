@@ -55,12 +55,12 @@ export default function AdminDashboard({
 
   return (
     <div>
-      <nav className="flex border-b border-zinc-200 bg-white">
+      <nav className="flex border-b border-zinc-200 bg-white mvs-mono">
         {TABS.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`px-6 py-3 text-sm font-medium transition-colors ${
+            className={`px-6 py-3 text-[11px] uppercase tracking-[0.22em] transition-colors ${
               tab === t.id
                 ? 'text-zinc-900 border-b-2 border-zinc-900'
                 : 'text-zinc-500 hover:text-zinc-700'

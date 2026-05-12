@@ -60,40 +60,42 @@ export default async function AdminDashboardPage() {
       <header className="bg-white border-b border-zinc-200">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-zinc-900">MVS — Admin</h1>
-            <p className="text-sm text-zinc-500">
+            <h1 className="mvs-display text-2xl font-bold uppercase tracking-wide text-zinc-900">
+              MVS — Admin
+            </h1>
+            <p className="mvs-mono text-[11px] uppercase tracking-widest text-zinc-500 mt-1">
               {responsesWide.length} total responses
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 mvs-mono text-[11px] uppercase tracking-[0.18em]">
             <Link
               href="/mvs/admin/orgs"
-              className="px-4 py-2 border border-zinc-300 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-100 transition-colors"
+              className="px-4 py-2 border border-zinc-300 text-zinc-700 hover:bg-zinc-100 transition-colors"
             >
               Orgs
             </Link>
             <Link
               href="/mvs/admin/leads"
-              className="px-4 py-2 border border-zinc-300 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-100 transition-colors"
+              className="px-4 py-2 border border-zinc-300 text-zinc-700 hover:bg-zinc-100 transition-colors"
             >
               Leads
             </Link>
             <a
               href="/api/admin/export-csv?format=wide"
-              className="px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"
+              className="px-4 py-2 bg-zinc-900 text-white hover:bg-zinc-800 transition-colors"
             >
               CSV (Wide)
             </a>
             <a
               href="/api/admin/export-csv?format=long"
-              className="px-4 py-2 border border-zinc-300 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-100 transition-colors"
+              className="px-4 py-2 border border-zinc-300 text-zinc-700 hover:bg-zinc-100 transition-colors"
             >
               CSV (Long)
             </a>
             <form action={signOut}>
               <button
                 type="submit"
-                className="px-4 py-2 border border-zinc-300 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-100 transition-colors"
+                className="px-4 py-2 border border-zinc-300 text-zinc-700 hover:bg-zinc-100 transition-colors"
               >
                 Logout
               </button>

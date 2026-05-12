@@ -12,16 +12,20 @@ export default async function StudentLayout({
   const displayName = result?.profile.full_name ?? result?.user.email ?? '';
 
   return (
-    <div className="min-h-screen bg-zinc-50 flex flex-col">
+    <div className="mvs-body min-h-screen bg-zinc-50 flex flex-col">
       <header className="bg-white border-b border-zinc-200">
         <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
-          <h1 className="text-base font-semibold text-zinc-900">MVS</h1>
+          <h1 className="mvs-display text-lg font-bold uppercase tracking-[0.18em] text-zinc-900">
+            MVS
+          </h1>
           <div className="flex items-center gap-4 text-sm">
-            <span className="text-zinc-500">{displayName}</span>
+            <span className="mvs-mono text-[11px] uppercase tracking-widest text-zinc-500">
+              {displayName}
+            </span>
             <form action={signOut}>
               <button
                 type="submit"
-                className="text-zinc-500 hover:text-zinc-700 underline"
+                className="mvs-mono text-[11px] uppercase tracking-widest text-zinc-500 hover:text-zinc-700"
               >
                 Sign out
               </button>
