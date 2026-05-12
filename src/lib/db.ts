@@ -466,6 +466,24 @@ export async function updateScenarioSetupText(
   if (error) throw new Error(error.message);
 }
 
+// Day 11 video metadata — set both or null both. The DB-level constraint
+// `video_url_requires_duration` enforces this; the caller (admin action)
+// is expected to validate before calling.
+export async function updateScenarioVideo(
+  scenarioFk: string,
+  videoUrl: string | null,
+  durationSeconds: number | null,
+) {
+  const { error } = await getClient()
+    .from('scenarios')
+    .update({
+      video_url: videoUrl,
+      video_duration_seconds: durationSeconds,
+    })
+    .eq('id', scenarioFk);
+  if (error) throw new Error(error.message);
+}
+
 // Phase 1 Freeze admin: update triggers_markers JSONB on a screen_options
 // row. Caller supplies the full 8-marker object (or a partial — keys are
 // merged at the column level, not overwritten wholesale).

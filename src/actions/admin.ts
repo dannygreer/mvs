@@ -16,6 +16,7 @@ import {
   deleteResponseTag,
   updateScenarioMeta,
   updateScenarioSetupText,
+  updateScenarioVideo,
   updateScreenOptionMarkers,
   updateMcOptionMarkers,
   type ScenarioMetaPatch,
@@ -142,6 +143,29 @@ export async function adminUpdateScenarioSetupText(
 ) {
   await requireAdmin();
   await updateScenarioSetupText(scenarioFk, setupText);
+  revalidatePath('/mvs/admin');
+}
+
+// Day 11 — Scenario video editor. Enforces the pair-set invariant before
+// hitting the DB; the `video_url_requires_duration` check constraint is
+// the second line of defense.
+export async function adminUpdateScenarioVideo(
+  scenarioFk: string,
+  videoUrl: string,
+  durationSeconds: number | null,
+) {
+  await requireAdmin();
+  const url = videoUrl.trim();
+  if (!url && durationSeconds == null) {
+    // Caller wants to clear both fields.
+    await updateScenarioVideo(scenarioFk, null, null);
+  } else if (url && durationSeconds != null && durationSeconds > 0) {
+    await updateScenarioVideo(scenarioFk, url, Math.round(durationSeconds));
+  } else {
+    throw new Error(
+      'Both video URL and duration are required (or leave both empty to clear).',
+    );
+  }
   revalidatePath('/mvs/admin');
 }
 

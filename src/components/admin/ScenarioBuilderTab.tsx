@@ -20,6 +20,7 @@ import {
   adminDeleteOption,
   adminUpdateScenarioMeta,
   adminUpdateScenarioSetupText,
+  adminUpdateScenarioVideo,
   adminUpdateScreenOptionMarkers,
 } from '@/actions/admin';
 
@@ -161,6 +162,10 @@ export default function ScenarioBuilderTab({
         <SetupTextEditor scenario={scenario} />
       )}
 
+      {/* Day 11: video metadata editor — paste a Supabase Storage URL +
+          duration, or clear both to remove. */}
+      <VideoEditor scenario={scenario} />
+
       {/* Phase 1 Freeze: scenario meta editor (commitment mode + 9 tags) */}
       <ScenarioMetaEditor scenario={scenario} />
 
@@ -272,6 +277,140 @@ function SetupTextEditor({ scenario }: { scenario: Scenario }) {
       ) : (
         <p className="text-sm text-zinc-700 whitespace-pre-line">
           {scenario.setupText ?? ''}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// Day 11: scenario video editor
+// ============================================================
+
+function VideoEditor({ scenario }: { scenario: Scenario }) {
+  const [editing, setEditing] = useState(false);
+  const [url, setUrl] = useState(scenario.videoUrl ?? '');
+  const [duration, setDuration] = useState(
+    scenario.videoDurationSeconds != null
+      ? String(scenario.videoDurationSeconds)
+      : '',
+  );
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const reset = () => {
+    setUrl(scenario.videoUrl ?? '');
+    setDuration(
+      scenario.videoDurationSeconds != null
+        ? String(scenario.videoDurationSeconds)
+        : '',
+    );
+    setError(null);
+  };
+
+  const save = () => {
+    setError(null);
+    const trimmed = url.trim();
+    const d = duration.trim() === '' ? null : Number(duration);
+    if (!trimmed && d == null) {
+      // Clearing both — allowed.
+    } else if (!trimmed || d == null || !Number.isFinite(d) || d <= 0) {
+      setError(
+        'Both video URL and duration (positive seconds) are required, or leave both empty to clear.',
+      );
+      return;
+    }
+    startTransition(async () => {
+      try {
+        await adminUpdateScenarioVideo(scenario.dbId, trimmed, d);
+        setEditing(false);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Save failed');
+      }
+    });
+  };
+
+  const hasVideo = scenario.videoUrl !== null;
+
+  return (
+    <div className="bg-white border border-zinc-200 rounded-lg p-4 space-y-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <h4 className="text-sm font-semibold text-zinc-900">Video</h4>
+          <p className="text-xs text-zinc-500 mt-0.5">
+            Shown to the student before Q1. When set, replaces the setup
+            screen and per-screen reading text.
+          </p>
+        </div>
+        {pending && <span className="text-xs text-zinc-400">Saving…</span>}
+        {!editing && (
+          <button
+            onClick={() => setEditing(true)}
+            className="text-xs text-blue-600 hover:text-blue-700"
+          >
+            Edit
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <div className="space-y-2">
+          <div>
+            <label className="text-xs font-medium text-zinc-600 uppercase tracking-wide block mb-1">
+              Video URL
+            </label>
+            <input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://<supabase-storage>/scenario.mp4 — or leave empty to clear"
+              className="w-full px-3 py-2 border border-zinc-300 rounded text-sm text-zinc-900 font-mono focus:outline-none focus:ring-2 focus:ring-zinc-900"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-zinc-600 uppercase tracking-wide block mb-1">
+              Duration (seconds)
+            </label>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              placeholder="e.g. 6"
+              className="w-32 px-3 py-2 border border-zinc-300 rounded text-sm text-zinc-900 font-mono focus:outline-none focus:ring-2 focus:ring-zinc-900"
+            />
+          </div>
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          <div className="flex gap-2">
+            <button
+              onClick={save}
+              disabled={pending}
+              className="px-3 py-1 bg-zinc-900 text-white rounded text-xs font-medium disabled:bg-zinc-400"
+            >
+              {pending ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              onClick={() => {
+                reset();
+                setEditing(false);
+              }}
+              className="px-3 py-1 border border-zinc-300 rounded text-xs"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : hasVideo ? (
+        <div className="text-sm text-zinc-700 space-y-1">
+          <p className="font-mono break-all">{scenario.videoUrl}</p>
+          <p className="text-xs text-zinc-500">
+            {scenario.videoDurationSeconds}s
+          </p>
+        </div>
+      ) : (
+        <p className="text-sm text-zinc-500 italic">
+          No video set. (Scenario uses setup text or per-screen reading
+          based on its other fields.)
         </p>
       )}
     </div>
