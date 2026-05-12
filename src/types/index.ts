@@ -122,6 +122,15 @@ export interface ResponseLongRow {
   // Day 4: nullable links to enrollment + student. Existing rows have null.
   enrollment_id: string | null;
   student_id: string | null;
+  // Phase 1 Freeze (migration 0012). All have DB defaults so write paths
+  // can omit them; reads from select * always return the resolved values.
+  event_markers?: Record<string, boolean>;
+  presented_options?:
+    | { id: string; label: string; text: string }[]
+    | null;
+  is_revision?: boolean;
+  revises_response_event_id?: number | null;
+  revision_number?: number;
 }
 
 export interface ResponseWideRow {
@@ -150,6 +159,10 @@ export interface ResponseWideRow {
   // Day 4: nullable links to enrollment + student.
   enrollment_id: string | null;
   student_id: string | null;
+  // Day 11 (migration 0013/0012). Terminal-screen ID for scenarios;
+  // null for multi-choice assessments. Optional because write paths can
+  // omit it (DB nullable default).
+  outcome_state?: string | null;
 }
 
 // Multi-choice (Day 5)

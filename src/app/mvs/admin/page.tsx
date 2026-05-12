@@ -11,6 +11,7 @@ import {
   type McAdminQuestion,
 } from '@/lib/db';
 import AdminDashboard from '@/components/admin/AdminDashboard';
+import ExportMenu from '@/components/admin/ExportMenu';
 import { signOut } from '@/actions/session';
 import type {
   ResponseWideRow,
@@ -80,18 +81,7 @@ export default async function AdminDashboardPage() {
             >
               Leads
             </Link>
-            <a
-              href="/api/admin/export-csv?format=wide"
-              className="px-4 py-2 bg-zinc-900 text-white hover:bg-zinc-800 transition-colors"
-            >
-              CSV (Wide)
-            </a>
-            <a
-              href="/api/admin/export-csv?format=long"
-              className="px-4 py-2 border border-zinc-300 text-zinc-700 hover:bg-zinc-100 transition-colors"
-            >
-              CSV (Long)
-            </a>
+            <ExportMenu />
             <form action={signOut}>
               <button
                 type="submit"

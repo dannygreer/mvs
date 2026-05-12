@@ -18,6 +18,8 @@ async function exportWide() {
   const results = await getAllResponsesWide();
 
   const headers = [
+    'Enrollment ID',
+    'Student ID',
     'Participant ID',
     'First Name',
     'Last Name',
@@ -38,6 +40,7 @@ async function exportWide() {
     'Q6 Answer',
     'Q6 RT (s)',
     'Total Time (s)',
+    'Outcome State',
     'Completed At',
   ];
 
@@ -45,6 +48,8 @@ async function exportWide() {
   for (const r of results) {
     csvRows.push(
       [
+        r.enrollment_id ?? '',
+        r.student_id ?? '',
         quote(r.participant_id),
         quote(r.first_name),
         quote(r.last_name),
@@ -65,6 +70,7 @@ async function exportWide() {
         r.q6_answer ?? '',
         r.q6_rt != null ? (r.q6_rt / 1000).toFixed(1) : '',
         (r.total_time / 1000).toFixed(1),
+        quote(r.outcome_state ?? ''),
         r.completed_at,
       ].join(','),
     );
@@ -83,6 +89,9 @@ async function exportLong() {
   const results = await getAllResponsesLong();
 
   const headers = [
+    'Event ID',
+    'Enrollment ID',
+    'Student ID',
     'Participant ID',
     'First Name',
     'Last Name',
@@ -95,6 +104,11 @@ async function exportLong() {
     'Response Category',
     'RT (s)',
     'Timed Out',
+    'Revision Number',
+    'Is Revision',
+    'Revises Event ID',
+    'Event Markers (JSON)',
+    'Presented Options (JSON)',
     'Timestamp',
   ];
 
@@ -102,6 +116,9 @@ async function exportLong() {
   for (const r of results) {
     csvRows.push(
       [
+        String(r.id),
+        r.enrollment_id ?? '',
+        r.student_id ?? '',
         quote(r.participant_id),
         quote(r.first_name),
         quote(r.last_name),
@@ -114,6 +131,15 @@ async function exportLong() {
         r.response_category ?? '',
         (r.rt_ms / 1000).toFixed(1),
         r.timed_out ? 'true' : 'false',
+        String(r.revision_number ?? 0),
+        r.is_revision ? 'true' : 'false',
+        r.revises_response_event_id != null
+          ? String(r.revises_response_event_id)
+          : '',
+        // Phase 1 Freeze JSONB fields serialized inline for spreadsheet
+        // ingest. Empty {} for older / un-tagged rows.
+        quote(JSON.stringify(r.event_markers ?? {})),
+        quote(JSON.stringify(r.presented_options ?? null)),
         r.timestamp,
       ].join(','),
     );
