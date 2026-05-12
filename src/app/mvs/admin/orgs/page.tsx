@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requireSuperAdmin } from '@/lib/auth';
 import { listOrgs } from '@/lib/db';
+import OrgListDeleteButton from '@/components/admin/OrgListDeleteButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,6 +60,7 @@ export default async function OrgsListPage() {
                   <th className="text-right px-4 py-3 font-medium">Deal</th>
                   <th className="text-right px-4 py-3 font-medium">Students</th>
                   <th className="text-left px-4 py-3 font-medium">Created</th>
+                  <th className="text-right px-4 py-3 font-medium"></th>
                 </tr>
               </thead>
               <tbody>
@@ -93,6 +95,13 @@ export default async function OrgsListPage() {
                     </td>
                     <td className="px-4 py-3 text-zinc-500">
                       {new Date(o.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <OrgListDeleteButton
+                        orgId={o.id}
+                        orgName={o.name}
+                        studentCount={o.student_count}
+                      />
                     </td>
                   </tr>
                 ))}

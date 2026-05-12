@@ -444,3 +444,141 @@ export async function inviteStudents(
 
   return { rows, invitedCount, conflictCount, errorCount };
 }
+
+// ============================================================
+// USER MANAGEMENT — corrective / destructive ops on orgs + roster
+// ============================================================
+//
+// All five are super_admin-gated. Self-protection on destructive ops
+// (caller cannot delete/demote themselves). super_admin role targets are
+// rejected to prevent stepping-on-toes mistakes — the rare super_admin
+// promotion/demotion remains a SQL-only operation per docs/needs_human.md.
+
+export async function deleteOrg(orgId: string): Promise<void> {
+  await requireSuperAdmin();
+  const client = adminClient();
+
+  // Empty-roster guard. Any profile with org_id === orgId, even an org_admin,
+  // blocks the delete. Caller must first remove students / demote admins.
+  const { data: existing, error: countErr } = await client
+    .from('profiles')
+    .select('id', { count: 'exact', head: true })
+    .eq('org_id', orgId);
+  if (countErr) throw new Error(`Roster check failed: ${countErr.message}`);
+  // .head=true returns null for data but populates count via response header;
+  // supabase-js exposes it on the result. Re-query for clarity:
+  void existing;
+  const { count } = await client
+    .from('profiles')
+    .select('id', { count: 'exact', head: true })
+    .eq('org_id', orgId);
+  if ((count ?? 0) > 0) {
+    throw new Error(
+      'Cannot delete org while roster is non-empty. Remove or reassign all profiles first.',
+    );
+  }
+
+  const { error } = await client.from('orgs').delete().eq('id', orgId);
+  if (error) throw new Error(`Org delete failed: ${error.message}`);
+
+  revalidatePath('/mvs/admin/orgs');
+}
+
+export async function removeStudentFromOrg(
+  orgId: string,
+  studentId: string,
+): Promise<void> {
+  const { user: caller } = await requireSuperAdmin();
+  if (caller.id === studentId) {
+    throw new Error('Cannot remove yourself from an org via this UI.');
+  }
+  const client = adminClient();
+  const { error } = await client
+    .from('profiles')
+    .update({ org_id: null })
+    .eq('id', studentId)
+    .eq('org_id', orgId);
+  if (error) throw new Error(`Unlink failed: ${error.message}`);
+
+  revalidatePath('/mvs/admin/orgs');
+  revalidatePath(`/mvs/admin/orgs/${orgId}`);
+}
+
+// Hard delete: removes the auth.users row. Cascades drop profiles +
+// enrollments. responses_long.student_id and responses_wide.student_id
+// flip to NULL (audit data survives anonymized) per the existing FKs.
+export async function deleteStudent(studentId: string): Promise<void> {
+  const { user: caller } = await requireSuperAdmin();
+  if (caller.id === studentId) {
+    throw new Error('Cannot delete your own account via this UI.');
+  }
+  const client = adminClient();
+
+  // Super_admin protection — refuse to delete any other super_admin from
+  // the UI. (Demoting/removing a super_admin remains a SQL operation.)
+  const { data: profile } = await client
+    .from('profiles')
+    .select('role')
+    .eq('id', studentId)
+    .single();
+  if (profile?.role === 'super_admin') {
+    throw new Error(
+      'Cannot delete a super_admin via this UI. Use SQL if intentional.',
+    );
+  }
+
+  const { error } = await client.auth.admin.deleteUser(studentId);
+  if (error) throw new Error(`Account delete failed: ${error.message}`);
+
+  revalidatePath('/mvs/admin/orgs');
+}
+
+export async function demoteOrgAdmin(
+  orgId: string,
+  studentId: string,
+): Promise<void> {
+  const { user: caller } = await requireSuperAdmin();
+  if (caller.id === studentId) {
+    throw new Error('Cannot demote your own role via this UI.');
+  }
+  const client = adminClient();
+
+  const { data: profile } = await client
+    .from('profiles')
+    .select('role')
+    .eq('id', studentId)
+    .single();
+  if (profile?.role === 'super_admin') {
+    throw new Error('Cannot demote a super_admin via this UI.');
+  }
+  if (profile?.role !== 'org_admin') {
+    throw new Error('Target is not an org_admin.');
+  }
+
+  const { error } = await client
+    .from('profiles')
+    .update({ role: 'student' })
+    .eq('id', studentId)
+    .eq('org_id', orgId)
+    .eq('role', 'org_admin');
+  if (error) throw new Error(`Demote failed: ${error.message}`);
+
+  revalidatePath(`/mvs/admin/orgs/${orgId}`);
+}
+
+// Reset an enrollment so the student can take it again. Clears both
+// completed_at (the gate) and invited_email_sent_at (so the pre-invite
+// resender treats it as a fresh outgoing). Idempotent.
+export async function resetEnrollment(enrollmentId: string): Promise<void> {
+  await requireSuperAdmin();
+  const client = adminClient();
+  const { error } = await client
+    .from('enrollments')
+    .update({ completed_at: null, invited_email_sent_at: null })
+    .eq('id', enrollmentId);
+  if (error) throw new Error(`Reset failed: ${error.message}`);
+
+  // We don't know which orgId hosts this enrollment without a join, so
+  // revalidate the orgs subtree broadly.
+  revalidatePath('/mvs/admin/orgs');
+}

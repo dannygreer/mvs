@@ -8,6 +8,8 @@ import OrgForm from '@/components/admin/OrgForm';
 import EnrollmentLinks from '@/components/admin/EnrollmentLinks';
 import InviteOrgAdminForm from '@/components/admin/InviteOrgAdminForm';
 import SendPreInvitesPanel from '@/components/admin/SendPreInvitesPanel';
+import RosterRowActions from '@/components/admin/RosterRowActions';
+import DangerZone from '@/components/admin/DangerZone';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +26,8 @@ export default async function OrgDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireSuperAdmin();
+  const { user: callerUser } = await requireSuperAdmin();
+  const callerId = callerUser.id;
   const { id } = await params;
   const org = await getOrg(id);
   if (!org) notFound();
@@ -34,6 +37,7 @@ export default async function OrgDetailPage({
   const orgAdmins = await getOrgAdmins(id);
   const baseUrl = await getBaseUrl();
   const updateAction = updateOrg.bind(null, id);
+  const totalRosterCount = fullRoster.length;
 
   // Count of students with at least one incomplete 'pre' enrollment.
   // The action re-checks invited_email_sent_at at send time; this count
@@ -107,6 +111,7 @@ export default async function OrgDetailPage({
                   <th className="text-left px-4 py-2 font-medium">Name</th>
                   <th className="text-left px-4 py-2 font-medium">Email</th>
                   <th className="text-left px-4 py-2 font-medium">Invited</th>
+                  <th className="text-right px-4 py-2 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -119,6 +124,16 @@ export default async function OrgDetailPage({
                     <td className="px-4 py-2 text-zinc-600">{a.email ?? '—'}</td>
                     <td className="px-4 py-2 text-zinc-500">
                       {new Date(a.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-2">
+                      <RosterRowActions
+                        orgId={id}
+                        profileId={a.id}
+                        fullName={a.full_name}
+                        email={a.email}
+                        role="org_admin"
+                        isSelf={a.id === callerId}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -151,6 +166,7 @@ export default async function OrgDetailPage({
                   <th className="text-left px-4 py-3 font-medium">Take links</th>
                   <th className="text-right px-4 py-3 font-medium">Done</th>
                   <th className="text-left px-4 py-3 font-medium">Joined</th>
+                  <th className="text-right px-4 py-3 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -180,12 +196,30 @@ export default async function OrgDetailPage({
                     <td className="px-4 py-3 text-zinc-500">
                       {new Date(m.created_at).toLocaleDateString()}
                     </td>
+                    <td className="px-4 py-3">
+                      <RosterRowActions
+                        orgId={id}
+                        profileId={m.id}
+                        fullName={m.full_name}
+                        email={m.email}
+                        role={
+                          m.role as 'student' | 'org_admin' | 'super_admin'
+                        }
+                        isSelf={m.id === callerId}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
         </section>
+
+        <DangerZone
+          orgId={id}
+          orgName={org.name}
+          rosterCount={totalRosterCount}
+        />
       </main>
     </div>
   );
