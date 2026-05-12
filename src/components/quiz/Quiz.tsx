@@ -12,6 +12,7 @@ import TitleScreen from './TitleScreen';
 import { ReadScreen, AnswerScreen, type AnswerEvent } from './ScenarioScreen';
 import ResultsScreen from './ResultsScreen';
 import ScenarioVideo from './ScenarioVideo';
+import PreviewBanner from './PreviewBanner';
 
 // Step state machine. Priority is video > setup > per-screen reading:
 //   - videoUrl set      → 'video' before Q1, no reading between Qs.
@@ -59,6 +60,11 @@ interface QuizProps {
   // present, submission goes through submitAssessmentByToken which derives
   // enrollment + student from the token server-side.
   token?: string;
+  // Preview mode (admin QA). Same UI, same timing, same revisable/video
+  // doctrine guards — but the terminal submission call is skipped. No row
+  // touches responses_long / responses_wide / enrollments. Renders the
+  // PreviewBanner at the top of every screen.
+  previewMode?: boolean;
 }
 
 export default function Quiz({
@@ -69,6 +75,7 @@ export default function Quiz({
   prefillLastName,
   prefillPhase,
   token,
+  previewMode,
 }: QuizProps) {
   const isEnrolled = !!enrollmentId || !!token;
   // Initial step decided by pickStartingStep (video > setup > reading,
@@ -212,42 +219,48 @@ export default function Quiz({
         return;
       }
 
-      // Terminal screen — submit data and show results
+      // Terminal screen — submit data and show results.
+      // Preview mode (admin QA): skip the submission entirely. The runner
+      // still transitions to 'results' so the admin sees the full flow,
+      // but no rows touch responses_long / responses_wide / enrollments.
       const totalTime = newResponses.reduce((sum, r) => sum + r.rtMs, 0);
       const participantId = `${firstName.toLowerCase()}_${lastName.toLowerCase()}_${Date.now()}`;
 
-      try {
-        if (token) {
-          await submitAssessmentByToken({
-            token,
-            scenarioId: scenario.scenarioId,
-            scenarioVersion: scenario.version,
-            branchPath: newPath,
-            responses: newResponses,
-            totalTime,
-          });
-        } else {
-          await submitAssessment({
-            participantId,
-            firstName,
-            lastName,
-            phase,
-            scenarioId: scenario.scenarioId,
-            scenarioVersion: scenario.version,
-            branchPath: newPath,
-            responses: newResponses,
-            totalTime,
-            enrollmentId,
-            studentId,
-          });
+      if (!previewMode) {
+        try {
+          if (token) {
+            await submitAssessmentByToken({
+              token,
+              scenarioId: scenario.scenarioId,
+              scenarioVersion: scenario.version,
+              branchPath: newPath,
+              responses: newResponses,
+              totalTime,
+            });
+          } else {
+            await submitAssessment({
+              participantId,
+              firstName,
+              lastName,
+              phase,
+              scenarioId: scenario.scenarioId,
+              scenarioVersion: scenario.version,
+              branchPath: newPath,
+              responses: newResponses,
+              totalTime,
+              enrollmentId,
+              studentId,
+            });
+          }
+        } catch (e) {
+          console.error('Failed to submit assessment:', e);
         }
-      } catch (e) {
-        console.error('Failed to submit assessment:', e);
       }
 
       setStep('results');
     },
     [
+      previewMode,
       branchPath,
       responses,
       currentScreenId,
@@ -263,6 +276,11 @@ export default function Quiz({
 
   const screen = scenario.screens[currentScreenId];
 
+  // Render the active step's content, then wrap with the optional preview
+  // banner. The IIFE keeps the existing per-case logic untouched (some
+  // cases have setStep() side effects on first paint which were already
+  // there and continue to work).
+  const stepContent: React.ReactNode = (() => {
   switch (step) {
     case 'title':
       return <TitleScreen onContinue={handleTitle} />;
@@ -364,4 +382,13 @@ export default function Quiz({
     case 'results':
       return <ResultsScreen firstName={firstName} responses={responses} />;
   }
+  return null;
+  })();
+
+  return (
+    <>
+      {previewMode && <PreviewBanner />}
+      {stepContent}
+    </>
+  );
 }

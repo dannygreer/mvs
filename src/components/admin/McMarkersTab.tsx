@@ -57,7 +57,7 @@ export default function McMarkersTab({
 
   return (
     <div className="p-6 space-y-6">
-      <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-4 flex items-center justify-between">
+      <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-4 flex items-center justify-between gap-3">
         <div>
           <h3 className="font-semibold text-zinc-900">Test Bank — Option Markers</h3>
           <p className="text-sm text-zinc-500 mt-1">
@@ -65,14 +65,24 @@ export default function McMarkersTab({
             doctrine markers — empty means no markers fire for that option.
           </p>
         </div>
-        {assessments.length > 1 && (
-          // Picker reload via ?mc_assessment=… on the admin route; for now we
-          // just label which assessment is in view since the existing admin
-          // page loads one MC assessment at a time.
-          <span className="text-xs text-zinc-500 mvs-mono">
-            {assessments.find((a) => a.id === activeAssessmentId)?.code ?? '—'}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {assessments.length > 1 && (
+            <span className="text-xs text-zinc-500 mvs-mono">
+              {assessments.find((a) => a.id === activeAssessmentId)?.code ?? '—'}
+            </span>
+          )}
+          {activeAssessmentId && (
+            <a
+              href={`/mvs/admin/preview/test-bank/${activeAssessmentId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mvs-mono inline-flex items-center gap-1 px-3 py-1.5 border border-zinc-300 text-[10px] uppercase tracking-widest text-zinc-700 hover:bg-white transition-colors"
+              title="Walk through the exam as a student — no data is recorded"
+            >
+              Preview ↗
+            </a>
+          )}
+        </div>
       </div>
 
       {questions.length === 0 ? (

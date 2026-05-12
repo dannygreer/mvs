@@ -123,7 +123,7 @@ export default function ScenarioBuilderTab({
     <div className="p-6 space-y-6">
       {/* Scenario info */}
       <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <div>
             <h3 className="font-semibold text-zinc-900">{scenario.title}</h3>
             <p className="text-sm text-zinc-500">
@@ -131,12 +131,23 @@ export default function ScenarioBuilderTab({
               {scenario.entryScreenId}
             </p>
           </div>
-          {scenarios.length > 1 && (
-            <ScenarioSelector
-              scenarios={scenarios}
-              activeId={scenario.dbId}
-            />
-          )}
+          <div className="flex items-center gap-2">
+            {scenarios.length > 1 && (
+              <ScenarioSelector
+                scenarios={scenarios}
+                activeId={scenario.dbId}
+              />
+            )}
+            <a
+              href={`/mvs/admin/preview/scenario/${scenario.dbId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mvs-mono inline-flex items-center gap-1 px-3 py-1.5 border border-zinc-300 text-[10px] uppercase tracking-widest text-zinc-700 hover:bg-white transition-colors"
+              title="Run this scenario as if you were a student — no data is recorded"
+            >
+              Preview ↗
+            </a>
+          </div>
         </div>
         <p className="text-sm text-zinc-500 mt-1">
           {screens.length} screens configured

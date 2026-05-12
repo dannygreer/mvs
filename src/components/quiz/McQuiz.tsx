@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import McRunner from './McRunner';
+import PreviewBanner from './PreviewBanner';
 import { submitMcAssessment, submitMcAssessmentByToken } from '@/actions/quiz';
 import type { McQuestion, McResponse, Phase } from '@/types';
 
@@ -21,6 +22,10 @@ interface McQuizProps {
   // Day 5b — token-URL mode (no auth). When set, the byToken action
   // derives enrollment, student, phase, and code server-side.
   token?: string;
+  // Preview mode (admin QA). Same UI + timing, but the final submit() is
+  // skipped — no rows touch responses_long / enrollments. Renders the
+  // PreviewBanner at the top.
+  previewMode?: boolean;
 }
 
 export default function McQuiz({
@@ -31,6 +36,7 @@ export default function McQuiz({
   assessmentCode,
   participantId,
   token,
+  previewMode,
 }: McQuizProps) {
   const [step, setStep] = useState<Step>('in_progress');
   const [index, setIndex] = useState(0);
@@ -39,6 +45,12 @@ export default function McQuiz({
 
   const submit = useCallback(
     async (final: McResponse[]) => {
+      // Preview mode: skip the submission and jump straight to results.
+      // The runner has full in-memory responses but nothing persists.
+      if (previewMode) {
+        setStep('results');
+        return;
+      }
       setStep('submitting');
       try {
         if (token) {
@@ -62,7 +74,7 @@ export default function McQuiz({
         setStep('error');
       }
     },
-    [token, enrollmentId, studentId, assessmentCode, phase, participantId]
+    [previewMode, token, enrollmentId, studentId, assessmentCode, phase, participantId]
   );
 
   const handleResponse = useCallback(
@@ -143,11 +155,14 @@ export default function McQuiz({
   }
 
   return (
-    <McRunner
-      key={questions[index].id}
-      question={questions[index]}
-      defaultTimeLimitSeconds={DEFAULT_TIME_LIMIT_SECONDS}
-      onResponse={handleResponse}
-    />
+    <>
+      {previewMode && <PreviewBanner />}
+      <McRunner
+        key={questions[index].id}
+        question={questions[index]}
+        defaultTimeLimitSeconds={DEFAULT_TIME_LIMIT_SECONDS}
+        onResponse={handleResponse}
+      />
+    </>
   );
 }
