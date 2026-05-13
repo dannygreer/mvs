@@ -2,7 +2,7 @@ import { headers } from 'next/headers';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireSuperAdmin } from '@/lib/auth';
-import { getOrg, getOrgAdmins, getOrgRoster } from '@/lib/db';
+import { getOrg, getOrgRoster } from '@/lib/db';
 import { updateOrg } from '@/actions/orgs';
 import OrgForm from '@/components/admin/OrgForm';
 import InviteOrgAdminForm from '@/components/admin/InviteOrgAdminForm';
@@ -34,7 +34,17 @@ export default async function OrgDetailPage({
 
   const fullRoster = await getOrgRoster(id);
   const roster = fullRoster.filter((m) => m.role === 'student');
-  const orgAdmins = await getOrgAdmins(id);
+  // Derive admins from the roster query — getOrgRoster already returns
+  // every profile in the org (students + admins). Avoids a duplicate
+  // profiles SELECT + a second auth.admin.listUsers pagination loop.
+  const orgAdmins = fullRoster
+    .filter((m) => m.role === 'org_admin')
+    .map((m) => ({
+      id: m.id,
+      full_name: m.full_name,
+      email: m.email,
+      created_at: m.created_at,
+    }));
   const baseUrl = await getBaseUrl();
   const updateAction = updateOrg.bind(null, id);
   const totalRosterCount = fullRoster.length;

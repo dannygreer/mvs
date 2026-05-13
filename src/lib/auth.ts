@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 
@@ -5,7 +6,11 @@ import { redirect } from 'next/navigation';
 // Use this from server actions and route handlers to guard admin-only paths.
 // /mvs/admin proxy already enforces the same check, so this is defense-in-depth
 // for non-/mvs/admin entry points (e.g. /api/admin/export-csv).
-export async function getSuperAdmin() {
+//
+// Wrapped in React `cache()` so that within a single request, multiple
+// callers (proxy + page + nested server components + server actions) share
+// one promise — saves duplicate auth.getUser + profiles.select roundtrips.
+export const getSuperAdmin = cache(async () => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -20,7 +25,7 @@ export async function getSuperAdmin() {
 
   if (profile?.role !== 'super_admin') return null;
   return { user, role: profile.role as 'super_admin' };
-}
+});
 
 export async function requireSuperAdmin() {
   const result = await getSuperAdmin();

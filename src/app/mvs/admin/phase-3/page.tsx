@@ -5,9 +5,10 @@ import {
   listAssessmentsByCodes,
   loadMcQuestionsForAdmin,
   getResponsesByCodes,
+  countResponsesByCodes,
   type PhaseAssessmentRow,
 } from '@/lib/db';
-import { loadDashboardSnapshot } from '@/lib/dashboard';
+import { loadPhase3Snapshot } from '@/lib/dashboard';
 import { PHASE_META } from '@/lib/phases';
 import AdminHeader from '@/components/admin/AdminHeader';
 import ScenarioBuilderTab from '@/components/admin/ScenarioBuilderTab';
@@ -29,11 +30,20 @@ export default async function AdminPhase3Page({ searchParams }: PageProps) {
   const view = rawView === 'responses' ? 'responses' : 'editor';
 
   const meta = PHASE_META.phase_3;
-  const [assessments, snapshot, responses] = await Promise.all([
+  // Editor view needs assessments list + cert chart data.
+  // Responses view needs the response payload.
+  // Both views need the badge count.
+  const [assessments, snapshot, responses, responsesCount] = await Promise.all([
     listAssessmentsByCodes(meta.assessmentCodes),
-    loadDashboardSnapshot(),
-    getResponsesByCodes(meta.assessmentCodes, 'post'),
+    view === 'editor' ? loadPhase3Snapshot() : Promise.resolve(null),
+    view === 'responses'
+      ? getResponsesByCodes(meta.assessmentCodes, 'post')
+      : Promise.resolve([]),
+    view === 'responses'
+      ? Promise.resolve(0)
+      : countResponsesByCodes(meta.assessmentCodes, 'post'),
   ]);
+  const badgeCount = view === 'responses' ? responses.length : responsesCount;
 
   const active: PhaseAssessmentRow | null =
     assessments.find((a) => a.code === requestedCode) ??
@@ -55,7 +65,7 @@ export default async function AdminPhase3Page({ searchParams }: PageProps) {
         <PhaseSubNav
           basePath="/mvs/admin/phase-3"
           active={view}
-          responsesCount={responses.length}
+          responsesCount={badgeCount}
           editorLabel="Outcomes + Editor"
           extraQuery={
             view === 'editor' ? { assessment: active?.code } : undefined
@@ -76,7 +86,7 @@ export default async function AdminPhase3Page({ searchParams }: PageProps) {
               <h2 className="mvs-mono text-xs font-semibold uppercase tracking-[0.22em] text-zinc-900 mb-3">
                 Certification Outcomes
               </h2>
-              <CertificationCharts certification={snapshot.certification} />
+              <CertificationCharts certification={snapshot?.certification ?? []} />
             </section>
             <SubTabStrip assessments={assessments} activeCode={active?.code} />
             <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">

@@ -1,5 +1,9 @@
 import { requireSuperAdmin } from '@/lib/auth';
-import { getScenarioByCode, getResponsesByCodes } from '@/lib/db';
+import {
+  getScenarioByCode,
+  getResponsesByCodes,
+  countResponsesByCodes,
+} from '@/lib/db';
 import { PHASE_META } from '@/lib/phases';
 import AdminHeader from '@/components/admin/AdminHeader';
 import ScenarioBuilderTab from '@/components/admin/ScenarioBuilderTab';
@@ -19,10 +23,19 @@ export default async function AdminPhase1Page({ searchParams }: PageProps) {
 
   const meta = PHASE_META.phase_1;
   const scenarioCode = meta.assessmentCodes[0]; // active_threat_v1
-  const [scenario, responses] = await Promise.all([
-    getScenarioByCode(scenarioCode),
-    getResponsesByCodes([scenarioCode], 'pre'),
+
+  // Fetch only what the active view needs. The sub-nav badge requires
+  // a count either way; full payload only when viewing responses.
+  const [scenario, responses, responsesCount] = await Promise.all([
+    view === 'editor' ? getScenarioByCode(scenarioCode) : Promise.resolve(null),
+    view === 'responses'
+      ? getResponsesByCodes([scenarioCode], 'pre')
+      : Promise.resolve([]),
+    view === 'responses'
+      ? Promise.resolve(0) // count derived from responses.length below
+      : countResponsesByCodes([scenarioCode], 'pre'),
   ]);
+  const badgeCount = view === 'responses' ? responses.length : responsesCount;
 
   const scenarioListItem = scenario
     ? [
@@ -51,7 +64,7 @@ export default async function AdminPhase1Page({ searchParams }: PageProps) {
         <PhaseSubNav
           basePath="/mvs/admin/phase-1"
           active={view}
-          responsesCount={responses.length}
+          responsesCount={badgeCount}
           editorLabel="Outcomes + Editor"
         />
 

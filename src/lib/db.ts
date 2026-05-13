@@ -575,6 +575,23 @@ export async function getAllResponsesWide(): Promise<ResponseWideRow[]> {
   return (data ?? []) as ResponseWideRow[];
 }
 
+// Count-only variant of getResponsesByCodes. Used by phase pages to
+// populate the Responses sub-tab badge without paying for the full row
+// payload when the user is in editor view.
+export async function countResponsesByCodes(
+  codes: string[],
+  phase: 'pre' | 'post' | 'practice' | null,
+): Promise<number> {
+  if (codes.length === 0) return 0;
+  let q = getClient()
+    .from('responses_wide')
+    .select('id', { count: 'exact', head: true })
+    .in('scenario_id', codes);
+  if (phase) q = q.eq('phase', phase);
+  const { count } = await q;
+  return count ?? 0;
+}
+
 // Phase-scoped slice of responses_wide. Used by the per-phase Responses
 // sub-tab on the admin pages. `codes` is matched against scenario_id (which
 // stores the assessment code), and `phase` filters enrollments.phase

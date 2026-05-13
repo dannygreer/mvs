@@ -76,6 +76,50 @@ export interface DashboardSnapshot {
   operational: OperationalRow | null;
 }
 
+// Phase 2 only renders the active-threat pre/post pairs, the marker
+// chart, and the post-completion count. Skip the 3 unused dashboard
+// views entirely.
+export interface Phase2Snapshot {
+  activeThreatPairs: ActiveThreatPair[];
+  markers: MarkerAggregate[];
+  postCompletion: CompletionRow | null;
+}
+export async function loadPhase2Snapshot(): Promise<Phase2Snapshot> {
+  const sb = client();
+  const [pairs, markers, completion] = await Promise.all([
+    sb
+      .from('dashboard_active_threat_pairs')
+      .select(
+        'pre_avg_rt, post_avg_rt, pre_branch, post_branch, path_diverged, pre_first_rt, post_first_rt',
+      ),
+    sb.from('dashboard_marker_aggregates').select('*'),
+    sb
+      .from('dashboard_completion_by_assessment')
+      .select('*')
+      .eq('assessment_code', 'active_threat_v1')
+      .eq('phase', 'post')
+      .maybeSingle(),
+  ]);
+  return {
+    activeThreatPairs: (pairs.data as ActiveThreatPair[] | null) ?? [],
+    markers: (markers.data as MarkerAggregate[] | null) ?? [],
+    postCompletion: (completion.data as CompletionRow | null) ?? null,
+  };
+}
+
+// Phase 3 only renders the certification tier breakdown. Skip the
+// other 5 views.
+export interface Phase3Snapshot {
+  certification: ExamCertification[];
+}
+export async function loadPhase3Snapshot(): Promise<Phase3Snapshot> {
+  const sb = client();
+  const { data } = await sb.from('dashboard_exam_certification').select('*');
+  return {
+    certification: (data as ExamCertification[] | null) ?? [],
+  };
+}
+
 export async function loadDashboardSnapshot(): Promise<DashboardSnapshot> {
   const sb = client();
   const [volume, completion, atPairs, markers, certification, operational] =
