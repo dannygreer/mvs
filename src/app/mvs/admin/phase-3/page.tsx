@@ -122,11 +122,27 @@ async function AssessmentEditor({ row }: { row: PhaseAssessmentRow }) {
   if (row.kind === 'multi_choice') {
     const questions = await loadMcQuestionsForAdmin(row.id);
     return (
-      <McMarkersTab
-        assessments={[{ id: row.id, code: row.code, name: row.name }]}
-        questions={questions}
-        activeAssessmentId={row.id}
-      />
+      <details className="group">
+        <summary className="cursor-pointer list-none px-6 py-4 flex items-center justify-between hover:bg-zinc-50 transition-colors">
+          <div>
+            <p className="font-semibold text-zinc-900">{row.name}</p>
+            <p className="text-sm text-zinc-500 mt-0.5">
+              {questions.length} questions · click to expand the marker editor
+            </p>
+          </div>
+          <span className="mvs-mono text-[10px] uppercase tracking-widest text-zinc-500 group-open:hidden">
+            Expand ▸
+          </span>
+          <span className="mvs-mono text-[10px] uppercase tracking-widest text-zinc-500 hidden group-open:inline">
+            Collapse ▾
+          </span>
+        </summary>
+        <McMarkersTab
+          assessments={[{ id: row.id, code: row.code, name: row.name }]}
+          questions={questions}
+          activeAssessmentId={row.id}
+        />
+      </details>
     );
   }
   // kind === 'scenario'
