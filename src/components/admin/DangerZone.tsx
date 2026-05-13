@@ -113,7 +113,7 @@ export default function DangerZone({ orgId, orgName, rosterCount }: Props) {
         <button
           type="button"
           onClick={() => setForceOpen(true)}
-          className="mvs-mono text-xs uppercase tracking-widest px-4 py-2 border border-red-700 bg-red-700 text-white hover:bg-red-800 transition-colors"
+          className="mvs-mono text-xs uppercase tracking-widest px-4 py-2 border border-red-700 bg-red-700 text-white hover:bg-red-800 transition-colors ml-auto"
           title="Delete this org AND every account in its roster."
         >
           Force delete (org + roster)
