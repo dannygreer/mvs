@@ -484,6 +484,49 @@ export async function deleteOrg(orgId: string): Promise<void> {
   revalidatePath('/mvs/admin/orgs');
 }
 
+// Nuclear option. Deletes EVERY auth.users row attached to the org
+// (cascades drop profiles + enrollments; responses keep their data with
+// student_id flipped to NULL) then deletes the org row itself.
+//
+// Refuses if any super_admin or the calling super_admin is in the
+// roster — those cases require a SQL intervention.
+export async function forceDeleteOrg(orgId: string): Promise<void> {
+  const { user: caller } = await requireSuperAdmin();
+  const client = adminClient();
+
+  const { data: members, error: rosterErr } = await client
+    .from('profiles')
+    .select('id, role')
+    .eq('org_id', orgId);
+  if (rosterErr) throw new Error(`Roster lookup failed: ${rosterErr.message}`);
+
+  for (const m of members ?? []) {
+    if (m.id === caller.id) {
+      throw new Error('Refusing to delete an org you belong to.');
+    }
+    if (m.role === 'super_admin') {
+      throw new Error(
+        'Cannot force-delete an org that contains a super_admin. Resolve that account in SQL first.',
+      );
+    }
+  }
+
+  // Delete every auth user; cascade handles profiles + enrollments.
+  for (const m of members ?? []) {
+    const { error } = await client.auth.admin.deleteUser(m.id);
+    if (error) {
+      throw new Error(
+        `Member delete failed for ${m.id}: ${error.message}. Org row was NOT deleted; rerun once resolved.`,
+      );
+    }
+  }
+
+  const { error: orgErr } = await client.from('orgs').delete().eq('id', orgId);
+  if (orgErr) throw new Error(`Org delete failed: ${orgErr.message}`);
+
+  revalidatePath('/mvs/admin/orgs');
+}
+
 // Force orgs.status back to 'active'. Useful when an org has been marked
 // 'churned' or 'completed' (manually or via a future disable flow) and the
 // super_admin wants to bring it back into the active list with one click.

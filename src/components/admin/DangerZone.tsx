@@ -4,9 +4,9 @@
 // members remain (the admin must Remove or Delete them first via the
 // roster row controls). The server enforces the same rule; this is just
 // a UI affordance to make the precondition explicit.
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { deleteOrg, reenableOrg } from '@/actions/orgs';
+import { deleteOrg, reenableOrg, forceDeleteOrg } from '@/actions/orgs';
 
 interface Props {
   orgId: string;
@@ -18,7 +18,11 @@ export default function DangerZone({ orgId, orgName, rosterCount }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [reenabling, startReenable] = useTransition();
+  const [forceOpen, setForceOpen] = useState(false);
+  const [forceTyped, setForceTyped] = useState('');
+  const [forcing, startForce] = useTransition();
   const disabled = rosterCount > 0;
+  const forceConfirmText = `delete ${orgName}`;
 
   const onClick = () => {
     if (disabled) return;
@@ -47,6 +51,19 @@ export default function DangerZone({ orgId, orgName, rosterCount }: Props) {
         router.refresh();
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Re-enable failed';
+        window.alert(msg);
+      }
+    });
+  };
+
+  const onForceDelete = () => {
+    if (forceTyped !== forceConfirmText) return;
+    startForce(async () => {
+      try {
+        await forceDeleteOrg(orgId);
+        router.replace('/mvs/admin/orgs');
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Force delete failed';
         window.alert(msg);
       }
     });
@@ -93,7 +110,77 @@ export default function DangerZone({ orgId, orgName, rosterCount }: Props) {
         >
           {reenabling ? 'Re-enabling…' : 'Re-enable this org'}
         </button>
+        <button
+          type="button"
+          onClick={() => setForceOpen(true)}
+          className="mvs-mono text-xs uppercase tracking-widest px-4 py-2 border border-red-700 bg-red-700 text-white hover:bg-red-800 transition-colors"
+          title="Delete this org AND every account in its roster."
+        >
+          Force delete (org + roster)
+        </button>
       </div>
+
+      {forceOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => !forcing && setForceOpen(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="mvs-mono text-xs font-semibold uppercase tracking-[0.22em] text-red-700">
+              Force delete · cannot be undone
+            </h3>
+            <p className="text-sm text-zinc-700">
+              This will permanently delete <strong>{orgName}</strong> and{' '}
+              <strong>{rosterCount}</strong> roster member
+              {rosterCount === 1 ? '' : 's'}. Every member&apos;s account
+              will be wiped. Their response data stays in the database with
+              their <code>student_id</code> flipped to NULL (anonymized).
+            </p>
+            <p className="text-sm text-zinc-700">
+              Type{' '}
+              <code className="mvs-mono px-1.5 py-0.5 bg-zinc-100 rounded text-zinc-900">
+                {forceConfirmText}
+              </code>{' '}
+              to confirm:
+            </p>
+            <input
+              type="text"
+              autoFocus
+              value={forceTyped}
+              onChange={(e) => setForceTyped(e.target.value)}
+              disabled={forcing}
+              className="w-full px-3 py-2 border border-zinc-300 rounded text-sm font-mono"
+              placeholder={forceConfirmText}
+            />
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setForceOpen(false);
+                  setForceTyped('');
+                }}
+                disabled={forcing}
+                className="mvs-mono text-xs uppercase tracking-widest px-4 py-2 border border-zinc-300 text-zinc-700 hover:bg-zinc-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={onForceDelete}
+                disabled={forcing || forceTyped !== forceConfirmText}
+                className="mvs-mono text-xs uppercase tracking-widest px-4 py-2 border border-red-700 bg-red-700 text-white hover:bg-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {forcing ? 'Deleting…' : 'I understand. Force delete.'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
