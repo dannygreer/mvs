@@ -76,6 +76,75 @@ export interface DashboardSnapshot {
   operational: OperationalRow | null;
 }
 
+// Org-scoped outcomes panel for /mvs/admin/orgs/[id]. Mirrors the
+// global Phase1To2Delta + CertificationCharts data, filtered to the
+// open org via the SQL functions in migration 0019.
+export interface OrgOutcomes {
+  pairs: ActiveThreatPair[];
+  markers: MarkerAggregate[];
+  certification: ExamCertification[];
+  postCompletion: { enrolled: number; completed: number } | null;
+  hasAnyCompletions: boolean;
+}
+
+function tierFor(scorePercent: number | null): ExamCertification['tier'] {
+  if (scorePercent == null) return 'incomplete';
+  if (scorePercent >= 90) return 'high';
+  if (scorePercent >= 80) return 'certified';
+  if (scorePercent >= 70) return 'borderline';
+  return 'not_certified';
+}
+
+export async function loadOrgOutcomes(orgId: string): Promise<OrgOutcomes> {
+  const sb = client();
+  const [pairs, markers, certRows, postRows] = await Promise.all([
+    sb.rpc('org_active_threat_pairs', { p_org_id: orgId }),
+    sb.rpc('org_marker_aggregates', { p_org_id: orgId }),
+    sb
+      .from('enrollment_scores')
+      .select('enrollment_id, score_percent, pass, completed_at')
+      .eq('org_id', orgId)
+      .eq('assessment_code', 'mvs_test_bank_v1')
+      .not('completed_at', 'is', null),
+    sb
+      .from('enrollment_scores')
+      .select('enrollment_id, completed_at')
+      .eq('org_id', orgId)
+      .eq('assessment_code', 'active_threat_v1')
+      .eq('phase', 'post'),
+  ]);
+
+  const certification: ExamCertification[] = (
+    (certRows.data as
+      | { enrollment_id: string; score_percent: number | null; pass: boolean | null }[]
+      | null) ?? []
+  ).map((r) => ({
+    enrollment_id: r.enrollment_id,
+    score_percent: r.score_percent,
+    pass: r.pass,
+    tier: tierFor(r.score_percent),
+  }));
+
+  const postEnrolled = (postRows.data as { completed_at: string | null }[] | null) ?? [];
+  const postCompletion = postEnrolled.length
+    ? {
+        enrolled: postEnrolled.length,
+        completed: postEnrolled.filter((r) => r.completed_at != null).length,
+      }
+    : null;
+
+  const pairsData = (pairs.data as ActiveThreatPair[] | null) ?? [];
+  const hasAnyCompletions = pairsData.length > 0 || certification.length > 0;
+
+  return {
+    pairs: pairsData,
+    markers: (markers.data as MarkerAggregate[] | null) ?? [],
+    certification,
+    postCompletion,
+    hasAnyCompletions,
+  };
+}
+
 // Phase 2 only renders the active-threat pre/post pairs, the marker
 // chart, and the post-completion count. Skip the 3 unused dashboard
 // views entirely.

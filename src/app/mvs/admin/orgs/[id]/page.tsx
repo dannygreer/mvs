@@ -10,6 +10,8 @@ import SendPreInvitesPanel from '@/components/admin/SendPreInvitesPanel';
 import RosterRowActions from '@/components/admin/RosterRowActions';
 import RosterRowExpandable from '@/components/admin/RosterRowExpandable';
 import DangerZone from '@/components/admin/DangerZone';
+import OrgOutcomes from '@/components/admin/OrgOutcomes';
+import { loadOrgOutcomes } from '@/lib/dashboard';
 import { formatAdminDateTime, formatAdminDate } from '@/lib/adminFormat';
 
 export const dynamic = 'force-dynamic';
@@ -33,7 +35,10 @@ export default async function OrgDetailPage({
   const org = await getOrg(id);
   if (!org) notFound();
 
-  const fullRoster = await getOrgRoster(id);
+  const [fullRoster, outcomes] = await Promise.all([
+    getOrgRoster(id),
+    loadOrgOutcomes(id),
+  ]);
   const roster = fullRoster.filter((m) => m.role === 'student');
   // Derive admins from the roster query — getOrgRoster already returns
   // every profile in the org (students + admins). Avoids a duplicate
@@ -157,6 +162,8 @@ export default async function OrgDetailPage({
             <InviteOrgAdminForm orgId={id} />
           </div>
         </section>
+
+        <OrgOutcomes outcomes={outcomes} />
 
         <section className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
           <div className="px-6 py-4 border-b border-zinc-200 flex items-center justify-between">
