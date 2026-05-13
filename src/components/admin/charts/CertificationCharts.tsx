@@ -67,6 +67,7 @@ export default function CertificationCharts({ certification }: Props) {
     ...t,
     displayName: TIER_LABELS[t.name],
   }));
+  const tierTotal = tierData.reduce((sum, t) => sum + t.value, 0);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -125,11 +126,11 @@ export default function CertificationCharts({ certification }: Props) {
                 data={tierData}
                 dataKey="value"
                 nameKey="displayName"
-                innerRadius={48}
-                outerRadius={75}
-                paddingAngle={2}
+                outerRadius={80}
                 stroke="#fff"
                 strokeWidth={2}
+                labelLine={false}
+                label={renderTierPctLabel(tierTotal)}
               >
                 {tierData.map((t, i) => (
                   <Cell key={i} fill={TIER_COLORS[t.name]} />
@@ -147,6 +148,48 @@ export default function CertificationCharts({ certification }: Props) {
       </Card>
     </div>
   );
+}
+
+// Renders a centered "NN%" inside each slice. Hides for slices small
+// enough that the label would overflow into a neighbor (< 5%).
+function renderTierPctLabel(total: number) {
+  return function PctLabel(props: {
+    cx?: number;
+    cy?: number;
+    midAngle?: number;
+    innerRadius?: number;
+    outerRadius?: number;
+    value?: number;
+  }) {
+    const {
+      cx = 0,
+      cy = 0,
+      midAngle = 0,
+      innerRadius = 0,
+      outerRadius = 0,
+      value = 0,
+    } = props;
+    if (total === 0) return null;
+    const pct = Math.round((value / total) * 100);
+    if (pct < 5) return null;
+    const RADIAN = Math.PI / 180;
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.55;
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+    return (
+      <text
+        x={x}
+        y={y}
+        fill="#fff"
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize={12}
+        fontWeight={600}
+      >
+        {pct}%
+      </text>
+    );
+  };
 }
 
 function Card({
