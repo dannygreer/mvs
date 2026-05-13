@@ -60,6 +60,20 @@ export default async function AdminPhase2Page({ searchParams }: PageProps) {
           </div>
         ) : (
           <>
+        <section className="bg-white border border-zinc-200 rounded-xl p-4">
+          <h2 className="mvs-mono text-xs font-semibold uppercase tracking-[0.22em] text-zinc-900 mb-3">
+            Adaptive Performance Analysis · Pre → Post Delta
+          </h2>
+          <p className="text-sm text-zinc-500 mb-4">
+            Post completion: {postCompletion?.completed ?? 0} of{' '}
+            {postCompletion?.enrolled ?? 0} students.
+          </p>
+          <Phase1To2Delta
+            pairs={snapshot.activeThreatPairs}
+            markers={snapshot.markers}
+          />
+        </section>
+
         <section className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <p className="mvs-mono text-[11px] uppercase tracking-widest text-amber-800">
             Read-only — scenario shared with Phase 1
@@ -112,20 +126,6 @@ export default async function AdminPhase2Page({ searchParams }: PageProps) {
               ))}
             </ul>
           )}
-        </section>
-
-        <section className="bg-white border border-zinc-200 rounded-xl p-4">
-          <h2 className="mvs-mono text-xs font-semibold uppercase tracking-[0.22em] text-zinc-900 mb-3">
-            Adaptive Performance Analysis · Pre → Post Delta
-          </h2>
-          <p className="text-sm text-zinc-500 mb-4">
-            Post completion: {postCompletion?.completed ?? 0} of{' '}
-            {postCompletion?.enrolled ?? 0} students.
-          </p>
-          <Phase1To2Delta
-            pairs={snapshot.activeThreatPairs}
-            markers={snapshot.markers}
-          />
         </section>
           </>
         )}
