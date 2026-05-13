@@ -89,6 +89,18 @@ export default async function AdminPhase3Page({ searchParams }: PageProps) {
   );
 }
 
+// Friendly button labels for the Phase 3 sub-tab strip. Keyed by the
+// assessment.code in PHASE_META.phase_3.assessmentCodes; falls back to
+// assessment.name then code if a new code is added.
+const PHASE_3_TAB_LABELS: Record<string, string> = {
+  mvs_test_bank_v1: 'Written Test',
+  scenario_conversation_velocity_v1: 'Scenario: Conversation Velocity',
+  scenario_perception_narrowing_v1: 'Scenario: Perception Narrowing',
+  scenario_escalation_loop_v1: 'Scenario: Escalation Loop',
+  scenario_team_velocity_v1: 'Scenario: Team Velocity',
+  scenario_recovery_drift_v1: 'Scenario: Recovery Drift',
+};
+
 function SubTabStrip({
   assessments,
   activeCode,
@@ -100,6 +112,7 @@ function SubTabStrip({
     <nav className="flex gap-1 overflow-x-auto bg-white border border-zinc-200 rounded-xl p-1">
       {assessments.map((a) => {
         const active = a.code === activeCode;
+        const label = PHASE_3_TAB_LABELS[a.code] ?? a.name ?? a.code;
         return (
           <Link
             key={a.code}
@@ -111,7 +124,7 @@ function SubTabStrip({
             }`}
             title={a.name}
           >
-            {a.code}
+            {label}
           </Link>
         );
       })}
