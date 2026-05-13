@@ -10,6 +10,9 @@ interface Props {
   active: 'editor' | 'responses';
   responsesCount: number;
   extraQuery?: Record<string, string | undefined>;
+  // Override the "Editor" tab label. Phase 3 uses "Editor + Outcomes"
+  // since its editor view also surfaces the cert charts.
+  editorLabel?: string;
 }
 
 export default function PhaseSubNav({
@@ -17,6 +20,7 @@ export default function PhaseSubNav({
   active,
   responsesCount,
   extraQuery,
+  editorLabel = 'Editor',
 }: Props) {
   const buildHref = (view: 'editor' | 'responses') => {
     const params = new URLSearchParams();
@@ -53,7 +57,7 @@ export default function PhaseSubNav({
 
   return (
     <nav className="flex gap-1 bg-white border border-zinc-200 rounded-xl p-1 w-fit">
-      <Tab view="editor" label="Editor" />
+      <Tab view="editor" label={editorLabel} />
       <Tab view="responses" label={`Responses (${responsesCount})`} />
     </nav>
   );
