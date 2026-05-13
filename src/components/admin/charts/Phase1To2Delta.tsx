@@ -169,7 +169,7 @@ function MarkerReductionChart({ markers }: { markers: MarkerAggregate[] }) {
           />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Bar dataKey="pre" name="Pre" fill="#a1a1aa" radius={[2, 2, 0, 0]} />
-          <Bar dataKey="post" name="Post" radius={[2, 2, 0, 0]}>
+          <Bar dataKey="post" name="Post" fill="#0891b2" radius={[2, 2, 0, 0]}>
             {data.map((d, i) => (
               <Cell
                 key={i}
