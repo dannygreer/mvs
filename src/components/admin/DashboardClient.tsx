@@ -16,7 +16,6 @@ import type {
   ActiveThreatPair,
   MarkerAggregate,
   ExamCertification,
-  CompletionRow,
 } from '@/lib/dashboard';
 import Phase1To2Delta from './charts/Phase1To2Delta';
 import CertificationCharts from './charts/CertificationCharts';
@@ -26,20 +25,11 @@ interface Props {
 }
 
 export default function DashboardClient({ snapshot }: Props) {
-  const {
-    volume,
-    completion,
-    activeThreatPairs,
-    markers,
-    certification,
-  } = snapshot;
+  const { volume, activeThreatPairs, markers, certification } = snapshot;
 
   return (
     <div className="space-y-10">
-      <SectionVolume
-        volume={volume}
-        completion={completion}
-      />
+      <SectionVolume volume={volume} />
       <SectionEffectiveness
         pairs={activeThreatPairs}
         markers={markers}
@@ -55,10 +45,8 @@ export default function DashboardClient({ snapshot }: Props) {
 // ---------------------------------------------------------------------
 function SectionVolume({
   volume,
-  completion,
 }: {
   volume: DashboardSnapshot['volume'];
-  completion: CompletionRow[];
 }) {
   return (
     <section>
@@ -75,49 +63,6 @@ function SectionVolume({
           value={volume?.in_flight_sessions ?? 0}
         />
       </div>
-
-      <Card className="mt-4">
-        <CardTitle>Completion by assessment + phase</CardTitle>
-        {completion.length === 0 ? (
-          <EmptyState text="No enrollments yet." />
-        ) : (
-          <table className="w-full text-sm mt-2">
-            <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500">
-              <tr>
-                <th className="text-left px-3 py-2 font-medium">Assessment</th>
-                <th className="text-left px-3 py-2 font-medium">Phase</th>
-                <th className="text-right px-3 py-2 font-medium">Enrolled</th>
-                <th className="text-right px-3 py-2 font-medium">Completed</th>
-                <th className="text-right px-3 py-2 font-medium">%</th>
-              </tr>
-            </thead>
-            <tbody>
-              {completion.map((r, i) => (
-                <tr
-                  key={`${r.assessment_code}-${r.phase}-${i}`}
-                  className="border-t border-zinc-100"
-                >
-                  <td className="px-3 py-2 text-zinc-700">
-                    {r.assessment_name}
-                  </td>
-                  <td className="px-3 py-2 text-zinc-500 uppercase tracking-wider text-[11px]">
-                    {r.phase}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {r.enrolled}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {r.completed}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {r.completion_pct}%
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
     </section>
   );
 }

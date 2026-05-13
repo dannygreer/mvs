@@ -60,7 +60,7 @@ export const PHASE_META: Record<PhaseId, PhaseMeta> = {
       'scenario_recovery_drift_v1',
     ],
     description:
-      'End-of-session-day certification battery: 50-Q multi-choice exam + 5 doctor-delivered video scenarios.',
+      'End-of-session-day certification battery: 50-Q multi-choice exam + video scenarios.',
   },
 };
 
