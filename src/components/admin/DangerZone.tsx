@@ -6,7 +6,7 @@
 // a UI affordance to make the precondition explicit.
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { deleteOrg } from '@/actions/orgs';
+import { deleteOrg, reenableOrg } from '@/actions/orgs';
 
 interface Props {
   orgId: string;
@@ -17,6 +17,7 @@ interface Props {
 export default function DangerZone({ orgId, orgName, rosterCount }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [reenabling, startReenable] = useTransition();
   const disabled = rosterCount > 0;
 
   const onClick = () => {
@@ -34,6 +35,18 @@ export default function DangerZone({ orgId, orgName, rosterCount }: Props) {
         router.replace('/mvs/admin/orgs');
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Delete failed';
+        window.alert(msg);
+      }
+    });
+  };
+
+  const onReenable = () => {
+    startReenable(async () => {
+      try {
+        await reenableOrg(orgId);
+        router.refresh();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Re-enable failed';
         window.alert(msg);
       }
     });
@@ -58,18 +71,29 @@ export default function DangerZone({ orgId, orgName, rosterCount }: Props) {
           </>
         )}
       </p>
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={disabled || pending}
-        className={`mvs-mono text-xs uppercase tracking-widest px-4 py-2 border transition-colors ${
-          disabled
-            ? 'border-zinc-200 text-zinc-300 cursor-not-allowed'
-            : 'border-red-500 text-red-600 hover:bg-red-50'
-        }`}
-      >
-        {pending ? 'Deleting…' : 'Delete this org'}
-      </button>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={onClick}
+          disabled={disabled || pending}
+          className={`mvs-mono text-xs uppercase tracking-widest px-4 py-2 border transition-colors ${
+            disabled
+              ? 'border-zinc-200 text-zinc-300 cursor-not-allowed'
+              : 'border-red-500 text-red-600 hover:bg-red-50'
+          }`}
+        >
+          {pending ? 'Deleting…' : 'Delete this org'}
+        </button>
+        <button
+          type="button"
+          onClick={onReenable}
+          disabled={reenabling}
+          className="mvs-mono text-xs uppercase tracking-widest px-4 py-2 border border-zinc-300 text-zinc-700 hover:bg-zinc-50 transition-colors disabled:opacity-50"
+          title="Force this org's status back to 'active'."
+        >
+          {reenabling ? 'Re-enabling…' : 'Re-enable this org'}
+        </button>
+      </div>
     </section>
   );
 }
