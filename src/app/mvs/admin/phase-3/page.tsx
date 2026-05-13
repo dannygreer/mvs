@@ -72,16 +72,16 @@ export default async function AdminPhase3Page({ searchParams }: PageProps) {
           </div>
         ) : (
           <>
-            <SubTabStrip assessments={assessments} activeCode={active?.code} />
-            <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
-              {active ? <AssessmentEditor row={active} /> : null}
-            </div>
             <section className="bg-white border border-zinc-200 rounded-xl p-4">
               <h2 className="mvs-mono text-xs font-semibold uppercase tracking-[0.22em] text-zinc-900 mb-3">
                 Certification Outcomes
               </h2>
               <CertificationCharts certification={snapshot.certification} />
             </section>
+            <SubTabStrip assessments={assessments} activeCode={active?.code} />
+            <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+              {active ? <AssessmentEditor row={active} /> : null}
+            </div>
           </>
         )}
       </main>
