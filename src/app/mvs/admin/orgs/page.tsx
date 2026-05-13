@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireSuperAdmin } from '@/lib/auth';
 import { listOrgs } from '@/lib/db';
 import OrgListDeleteButton from '@/components/admin/OrgListDeleteButton';
-import { orgTypeLabel } from '@/lib/orgTypes';
+import { orgTypeLabel, orgStatusLabel } from '@/lib/orgTypes';
 import { formatAdminDate } from '@/lib/adminFormat';
 
 export const dynamic = 'force-dynamic';
@@ -93,7 +93,7 @@ export default async function OrgsListPage() {
                           STATUS_STYLES[o.status] ?? 'bg-zinc-100 text-zinc-700'
                         }`}
                       >
-                        {o.status}
+                        {orgStatusLabel(o.status)}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right text-zinc-600 tabular-nums">

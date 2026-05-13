@@ -26,3 +26,25 @@ export function orgTypeLabel(slug: string | null | undefined): string {
   if (!slug) return '—';
   return (ORG_TYPE_LABELS as Record<string, string>)[slug] ?? slug;
 }
+
+// Status vocabulary (lowercase slugs in DB; Title Case for display).
+export const ORG_STATUS_OPTIONS = [
+  'lead',
+  'active',
+  'completed',
+  'churned',
+] as const;
+
+export type OrgStatusSlug = (typeof ORG_STATUS_OPTIONS)[number];
+
+export const ORG_STATUS_LABELS: Record<OrgStatusSlug, string> = {
+  lead: 'Lead',
+  active: 'Active',
+  completed: 'Completed',
+  churned: 'Churned',
+};
+
+export function orgStatusLabel(slug: string | null | undefined): string {
+  if (!slug) return '—';
+  return (ORG_STATUS_LABELS as Record<string, string>)[slug] ?? slug;
+}

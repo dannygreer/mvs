@@ -1,13 +1,16 @@
 import type { OrgRow } from '@/lib/db';
-import { ORG_TYPE_OPTIONS, ORG_TYPE_LABELS } from '@/lib/orgTypes';
+import {
+  ORG_TYPE_OPTIONS,
+  ORG_TYPE_LABELS,
+  ORG_STATUS_OPTIONS,
+  ORG_STATUS_LABELS,
+} from '@/lib/orgTypes';
 
 interface OrgFormProps {
   action: (formData: FormData) => void | Promise<void>;
   initial?: Partial<OrgRow>;
   submitLabel: string;
 }
-
-const STATUSES = ['lead', 'active', 'completed', 'churned'];
 
 export default function OrgForm({ action, initial, submitLabel }: OrgFormProps) {
   const dealDollars =
@@ -72,9 +75,9 @@ export default function OrgForm({ action, initial, submitLabel }: OrgFormProps) 
             defaultValue={initial?.status ?? 'lead'}
             className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-zinc-900 bg-white focus:outline-none focus:ring-2 focus:ring-zinc-900"
           >
-            {STATUSES.map((s) => (
+            {ORG_STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {ORG_STATUS_LABELS[s]}
               </option>
             ))}
           </select>
