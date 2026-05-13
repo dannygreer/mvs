@@ -555,6 +555,51 @@ export async function updateMcOptionMarkers(
   if (error) throw new Error(error.message);
 }
 
+// MC question/option editors. The MC test bank is the only multi-choice
+// assessment today; these power inline edits in McMarkersTab.
+export async function updateMcQuestionPrompt(
+  questionId: string,
+  prompt: string,
+) {
+  const { error } = await getClient()
+    .from('mc_questions')
+    .update({ prompt })
+    .eq('id', questionId);
+  if (error) throw new Error(error.message);
+}
+
+export async function updateMcOptionText(optionId: string, text: string) {
+  const { error } = await getClient()
+    .from('mc_options')
+    .update({ text })
+    .eq('id', optionId);
+  if (error) throw new Error(error.message);
+}
+
+// Picks one of the four options as correct; clears the flag on the
+// other three for the same question. Wrapped in two updates because
+// supabase-js has no atomic "update where in (...)" with different
+// values per row, but the question_id filter scopes the writes.
+export async function setMcCorrectOption(
+  questionId: string,
+  correctOptionId: string,
+) {
+  const client = getClient();
+  // Clear is_correct on the other options for this question.
+  const { error: clearErr } = await client
+    .from('mc_options')
+    .update({ is_correct: false })
+    .eq('question_id', questionId)
+    .neq('id', correctOptionId);
+  if (clearErr) throw new Error(`Clear correct failed: ${clearErr.message}`);
+  // Set is_correct on the chosen option.
+  const { error: setErr } = await client
+    .from('mc_options')
+    .update({ is_correct: true })
+    .eq('id', correctOptionId);
+  if (setErr) throw new Error(`Set correct failed: ${setErr.message}`);
+}
+
 export async function insertResponseWide(
   row: Omit<ResponseWideRow, 'id' | 'completed_at'>,
 ) {

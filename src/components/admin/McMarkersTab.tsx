@@ -1,19 +1,24 @@
 'use client';
 
-// Day 11 — Day 10 cleanup: MC option marker editor UI.
+// Phase 3 written-test editor. Each question card lets the doctor:
+//   - Edit the question prompt (textarea, save on blur)
+//   - Edit each option's text (input, save on blur)
+//   - Pick which option is correct (radio, immediate save)
+//   - Toggle the 8 doctrine markers per option (existing checkbox grid)
 //
-// Mirrors the per-option 8-checkbox grid that lives inside ScenarioBuilderTab
-// for screen_options. The server action adminUpdateMcOptionMarkers already
-// existed from Day 10's build; this just exposes it as a tab so the doctor
-// can tag the 50 multi-choice options against the 8 locked Phase 1 markers.
-//
-// Defensive note: the loader (loadMcQuestionsForAdmin) does return is_correct
-// because admins need to see the answer key while tagging. The data flows
-// through here as Server Component → Client Component props (this file is
-// 'use client'); never propagate it into a student-facing route.
+// Defensive note: the loader (loadMcQuestionsForAdmin) does return
+// is_correct because admins need to see the answer key while editing.
+// The data flows through here as Server Component → Client Component
+// props (this file is 'use client'); never propagate it into a
+// student-facing route.
 
 import { useState, useTransition } from 'react';
-import { adminUpdateMcOptionMarkers } from '@/actions/admin';
+import {
+  adminUpdateMcOptionMarkers,
+  adminUpdateMcQuestionPrompt,
+  adminUpdateMcOptionText,
+  adminSetMcCorrectOption,
+} from '@/actions/admin';
 import type { McAdminAssessment, McAdminQuestion } from '@/lib/db';
 
 const MARKER_KEYS = [
@@ -59,10 +64,10 @@ export default function McMarkersTab({
     <div className="p-6 space-y-6">
       <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-4 flex items-center justify-between gap-3">
         <div>
-          <h3 className="font-semibold text-zinc-900">Test Bank — Option Markers</h3>
+          <h3 className="font-semibold text-zinc-900">Test Bank Editor</h3>
           <p className="text-sm text-zinc-500 mt-1">
-            50-question certification exam. Tag each option with the 8
-            doctrine markers — empty means no markers fire for that option.
+            Edit each question prompt, option text, the correct answer, and
+            the 8 doctrine markers per option. Changes save on blur.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -103,18 +108,19 @@ export default function McMarkersTab({
 function McQuestionRow({ question }: { question: McAdminQuestion }) {
   return (
     <li className="border border-zinc-200 rounded-lg overflow-hidden">
-      <div className="px-4 py-3 bg-zinc-50 border-b border-zinc-200">
+      <div className="px-4 py-3 bg-zinc-50 border-b border-zinc-200 space-y-2">
         <p className="text-xs text-zinc-500 font-mono">Q{question.sequence}</p>
-        <p className="text-sm text-zinc-900 mt-1">{question.prompt}</p>
+        <PromptEditor questionId={question.id} initial={question.prompt} />
       </div>
       <div className="divide-y divide-zinc-100">
         {question.options.map((o) => (
-          <McOptionMarkerEditor
+          <McOptionRow
             key={o.id}
+            questionId={question.id}
             optionId={o.id}
             label={o.label}
-            text={o.text}
-            isCorrect={o.isCorrect}
+            initialText={o.text}
+            initialCorrect={o.isCorrect}
             initialMarkers={o.triggersMarkers}
           />
         ))}
@@ -123,19 +129,68 @@ function McQuestionRow({ question }: { question: McAdminQuestion }) {
   );
 }
 
-function McOptionMarkerEditor({
+function PromptEditor({
+  questionId,
+  initial,
+}: {
+  questionId: string;
+  initial: string;
+}) {
+  const [text, setText] = useState(initial);
+  const [pending, startTransition] = useTransition();
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+
+  const save = () => {
+    const trimmed = text.trim();
+    if (trimmed === initial.trim()) return;
+    startTransition(async () => {
+      try {
+        await adminUpdateMcQuestionPrompt(questionId, trimmed);
+        setSavedAt(Date.now());
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Save failed';
+        window.alert(msg);
+      }
+    });
+  };
+
+  return (
+    <div>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={save}
+        rows={2}
+        className="w-full px-3 py-2 text-sm text-zinc-900 border border-zinc-200 rounded bg-white focus:outline-none focus:ring-1 focus:ring-zinc-400"
+      />
+      <div className="text-[10px] text-zinc-400 mt-1 h-3">
+        {pending
+          ? 'Saving…'
+          : savedAt
+          ? 'Saved'
+          : ''}
+      </div>
+    </div>
+  );
+}
+
+function McOptionRow({
+  questionId,
   optionId,
   label,
-  text,
-  isCorrect,
+  initialText,
+  initialCorrect,
   initialMarkers,
 }: {
+  questionId: string;
   optionId: string;
   label: 'A' | 'B' | 'C' | 'D';
-  text: string;
-  isCorrect: boolean;
+  initialText: string;
+  initialCorrect: boolean;
   initialMarkers: Record<string, boolean>;
 }) {
+  const [text, setText] = useState(initialText);
+  const [isCorrect, setIsCorrect] = useState(initialCorrect);
   const [markers, setMarkers] = useState<Record<string, boolean>>(
     () =>
       Object.fromEntries(
@@ -144,10 +199,34 @@ function McOptionMarkerEditor({
   );
   const [pending, startTransition] = useTransition();
 
-  const toggle = (key: MarkerKey) => {
-    // Functional setMarkers avoids stale-closure races on rapid clicks: if
-    // two toggles fire within one render tick, each call sees the previous
-    // committed state rather than the stale `markers` snapshot from render.
+  const saveText = () => {
+    const trimmed = text.trim();
+    if (trimmed === initialText.trim()) return;
+    startTransition(async () => {
+      try {
+        await adminUpdateMcOptionText(optionId, trimmed);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Save failed';
+        window.alert(msg);
+      }
+    });
+  };
+
+  const setCorrect = () => {
+    if (isCorrect) return;
+    setIsCorrect(true); // optimistic
+    startTransition(async () => {
+      try {
+        await adminSetMcCorrectOption(questionId, optionId);
+      } catch (e) {
+        setIsCorrect(false); // rollback
+        const msg = e instanceof Error ? e.message : 'Save failed';
+        window.alert(msg);
+      }
+    });
+  };
+
+  const toggleMarker = (key: MarkerKey) => {
     setMarkers((prev) => {
       const next = { ...prev, [key]: !prev[key] };
       startTransition(() => adminUpdateMcOptionMarkers(optionId, next));
@@ -156,17 +235,38 @@ function McOptionMarkerEditor({
   };
 
   return (
-    <div className="px-4 py-3 flex flex-col md:flex-row md:items-start gap-3">
-      <div className="md:w-1/3">
-        <p className="text-xs text-zinc-500">
-          <span className="font-mono text-zinc-700 mr-2">{label}.</span>
-          {isCorrect && (
-            <span className="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-medium uppercase">
-              correct
+    <div
+      className={`px-4 py-3 flex flex-col md:flex-row md:items-start gap-3 ${
+        isCorrect ? 'bg-emerald-50/40' : ''
+      }`}
+    >
+      <div className="md:w-1/3 space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-zinc-700 text-sm">{label}.</span>
+          <label className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest cursor-pointer">
+            <input
+              type="radio"
+              name={`correct-${questionId}`}
+              checked={isCorrect}
+              onChange={setCorrect}
+              disabled={pending}
+            />
+            <span
+              className={
+                isCorrect ? 'text-emerald-700 font-semibold' : 'text-zinc-500'
+              }
+            >
+              Correct
             </span>
-          )}
-        </p>
-        <p className="text-sm text-zinc-800 mt-1">{text}</p>
+          </label>
+        </div>
+        <input
+          type="text"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={saveText}
+          className="w-full px-2 py-1 text-sm text-zinc-800 border border-zinc-200 rounded bg-white focus:outline-none focus:ring-1 focus:ring-zinc-400"
+        />
       </div>
       <div className="md:flex-1">
         <div className="flex items-center justify-between mb-1">
@@ -188,7 +288,7 @@ function McOptionMarkerEditor({
               <input
                 type="checkbox"
                 checked={!!markers[k]}
-                onChange={() => toggle(k)}
+                onChange={() => toggleMarker(k)}
                 disabled={pending}
                 className="rounded"
               />

@@ -19,6 +19,9 @@ import {
   updateScenarioVideo,
   updateScreenOptionMarkers,
   updateMcOptionMarkers,
+  updateMcQuestionPrompt,
+  updateMcOptionText,
+  setMcCorrectOption,
   type ScenarioMetaPatch,
 } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
@@ -192,4 +195,28 @@ export async function adminUpdateMcOptionMarkers(
 ) {
   await requireAdmin();
   await updateMcOptionMarkers(optionDbId, markers);
+}
+
+export async function adminUpdateMcQuestionPrompt(
+  questionId: string,
+  prompt: string,
+) {
+  await requireAdmin();
+  await updateMcQuestionPrompt(questionId, prompt.trim());
+  revalidatePath('/mvs/admin', 'layout');
+}
+
+export async function adminUpdateMcOptionText(optionId: string, text: string) {
+  await requireAdmin();
+  await updateMcOptionText(optionId, text.trim());
+  revalidatePath('/mvs/admin', 'layout');
+}
+
+export async function adminSetMcCorrectOption(
+  questionId: string,
+  correctOptionId: string,
+) {
+  await requireAdmin();
+  await setMcCorrectOption(questionId, correctOptionId);
+  revalidatePath('/mvs/admin', 'layout');
 }
