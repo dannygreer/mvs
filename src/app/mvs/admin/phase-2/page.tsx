@@ -52,6 +52,7 @@ export default async function AdminPhase2Page({ searchParams }: PageProps) {
           basePath="/mvs/admin/phase-2"
           active={view}
           responsesCount={responses.length}
+          editorLabel="Outcomes + Editor"
         />
 
         {view === 'responses' ? (
