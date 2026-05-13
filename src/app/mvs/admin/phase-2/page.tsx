@@ -34,6 +34,9 @@ export default async function AdminPhase2Page() {
         activeRoute="/mvs/admin/phase-2"
       />
       <main className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+        <h2 className="mvs-display text-3xl font-bold text-zinc-900">
+          {meta.shortLabel}: {meta.name}
+        </h2>
         <section className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <p className="mvs-mono text-[11px] uppercase tracking-widest text-amber-800">
             Read-only — scenario shared with Phase 1

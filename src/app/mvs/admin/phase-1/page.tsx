@@ -43,9 +43,12 @@ export default async function AdminPhase1Page() {
         activeRoute="/mvs/admin/phase-1"
       />
       <main className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+        <h2 className="mvs-display text-3xl font-bold text-zinc-900">
+          {meta.shortLabel}: {meta.name}
+        </h2>
         <section className="bg-white border border-zinc-200 rounded-xl p-4">
           <h2 className="mvs-mono text-xs font-semibold uppercase tracking-[0.22em] text-zinc-900">
-            Phase 1 Baseline
+            Baseline Stats
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
             <Stat

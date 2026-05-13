@@ -16,6 +16,9 @@ export type PhaseId = 'phase_1' | 'phase_2' | 'phase_3';
 export interface PhaseMeta {
   label: string;
   shortLabel: string;
+  // Just the doctrine name, no "Phase N —" prefix. Used by phase pages to
+  // render `${shortLabel}: ${name}` as the main H2.
+  name: string;
   // Which enrollments.phase value this lens reads. Drives the analytics
   // queries (pre vs post completion stats, etc.).
   enrollmentPhase: 'pre' | 'post';
@@ -28,6 +31,7 @@ export const PHASE_META: Record<PhaseId, PhaseMeta> = {
   phase_1: {
     label: 'Phase 1 — Baseline Operational Assessment',
     shortLabel: 'Phase 1',
+    name: 'Baseline Operational Assessment',
     enrollmentPhase: 'pre',
     assessmentCodes: ['active_threat_v1'],
     description:
@@ -36,6 +40,7 @@ export const PHASE_META: Record<PhaseId, PhaseMeta> = {
   phase_2: {
     label: 'Phase 2 — Adaptive Performance Analysis',
     shortLabel: 'Phase 2',
+    name: 'Adaptive Performance Analysis',
     enrollmentPhase: 'post',
     assessmentCodes: ['active_threat_v1'],
     description:
@@ -44,6 +49,7 @@ export const PHASE_META: Record<PhaseId, PhaseMeta> = {
   phase_3: {
     label: 'Phase 3 — Operational Governance Certification',
     shortLabel: 'Phase 3',
+    name: 'Operational Governance Certification',
     enrollmentPhase: 'post',
     assessmentCodes: [
       'mvs_test_bank_v1',

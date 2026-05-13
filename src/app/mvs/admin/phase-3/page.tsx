@@ -43,6 +43,9 @@ export default async function AdminPhase3Page({ searchParams }: PageProps) {
         activeRoute="/mvs/admin/phase-3"
       />
       <main className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+        <h2 className="mvs-display text-3xl font-bold text-zinc-900">
+          {meta.shortLabel}: {meta.name}
+        </h2>
         {assessments.length === 0 ? (
           <p className="text-sm text-zinc-500">
             No Phase 3 assessments configured.
