@@ -865,6 +865,8 @@ export type OrgRow = {
   status: 'lead' | 'active' | 'completed' | 'churned';
   deal_value_cents: number | null;
   notes: string | null;
+  // ISO date string (YYYY-MM-DD) or null. Migration 0016.
+  session_date: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -897,6 +899,7 @@ export type OrgInput = {
   status: 'lead' | 'active' | 'completed' | 'churned';
   deal_value_cents: number | null;
   notes: string | null;
+  session_date: string | null;
 };
 
 export async function listOrgs(): Promise<OrgListItem[]> {

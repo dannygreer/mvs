@@ -66,7 +66,7 @@ export default async function OrgsListPage() {
                   <th className="text-left px-4 py-3 font-medium">Status</th>
                   <th className="text-right px-4 py-3 font-medium">Deal</th>
                   <th className="text-right px-4 py-3 font-medium">Students</th>
-                  <th className="text-left px-4 py-3 font-medium">Created</th>
+                  <th className="text-left px-4 py-3 font-medium">Session date</th>
                   <th className="text-right px-4 py-3 font-medium"></th>
                 </tr>
               </thead>
@@ -101,7 +101,9 @@ export default async function OrgsListPage() {
                       {o.student_count}
                     </td>
                     <td className="px-4 py-3 text-zinc-500">
-                      {new Date(o.created_at).toLocaleDateString()}
+                      {o.session_date
+                        ? new Date(`${o.session_date}T00:00:00`).toLocaleDateString()
+                        : '—'}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <OrgListDeleteButton

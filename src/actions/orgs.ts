@@ -29,6 +29,9 @@ function parseDealValue(raw: FormDataEntryValue | null): number | null {
 function parseInput(formData: FormData): OrgInput {
   const name = String(formData.get('name') ?? '').trim();
   if (!name) throw new Error('Name is required');
+  const rawSession = String(formData.get('session_date') ?? '').trim();
+  // <input type="date"> emits YYYY-MM-DD already; empty string -> null.
+  const sessionDate = rawSession === '' ? null : rawSession;
   return {
     name,
     type: (String(formData.get('type') ?? '').trim() || null),
@@ -37,6 +40,7 @@ function parseInput(formData: FormData): OrgInput {
     status: parseStatus(formData.get('status')),
     deal_value_cents: parseDealValue(formData.get('deal_value')),
     notes: (String(formData.get('notes') ?? '').trim() || null),
+    session_date: sessionDate,
   };
 }
 

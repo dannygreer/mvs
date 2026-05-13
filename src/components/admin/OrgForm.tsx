@@ -92,6 +92,17 @@ export default function OrgForm({ action, initial, submitLabel }: OrgFormProps) 
             className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900"
           />
         </div>
+        <div>
+          <label className="block text-sm font-medium text-zinc-700 mb-1">
+            Session date
+          </label>
+          <input
+            name="session_date"
+            type="date"
+            defaultValue={initial?.session_date ?? ''}
+            className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900"
+          />
+        </div>
       </div>
       <div>
         <label className="block text-sm font-medium text-zinc-700 mb-1">Notes</label>
