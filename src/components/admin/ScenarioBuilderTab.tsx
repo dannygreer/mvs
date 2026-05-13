@@ -101,12 +101,17 @@ interface ScenarioBuilderTabProps {
   // Hide the video editor card. Phase 1 (active_threat) is text-and-
   // branching only; only the Phase 3 video scenarios should expose it.
   hideVideo?: boolean;
+  // Hide per-screen timer chip + editor and the timer input on Add
+  // Screen. Phase 3 scenarios + the written test don't use timers; only
+  // Phase 1/2 (active_threat) do.
+  hideTimer?: boolean;
 }
 
 export default function ScenarioBuilderTab({
   scenario,
   scenarios,
   hideVideo = false,
+  hideTimer = false,
 }: ScenarioBuilderTabProps) {
   const [expandedScreen, setExpandedScreen] = useState<string | null>(null);
   const [showAddScreen, setShowAddScreen] = useState(false);
@@ -188,6 +193,7 @@ export default function ScenarioBuilderTab({
             allScreenIds={allScreenIds}
             scenarioFk={scenario.dbId}
             usesSetupText={scenario.setupText !== null}
+            hideTimer={hideTimer}
           />
         ))}
       </div>
@@ -198,6 +204,7 @@ export default function ScenarioBuilderTab({
           scenarioFk={scenario.dbId}
           nextSortOrder={screens.length + 1}
           onDone={() => setShowAddScreen(false)}
+          hideTimer={hideTimer}
         />
       ) : (
         <button
@@ -582,6 +589,7 @@ function ScreenCard({
   allScreenIds,
   scenarioFk,
   usesSetupText,
+  hideTimer,
 }: {
   screen: ScenarioScreen;
   isExpanded: boolean;
@@ -591,6 +599,7 @@ function ScreenCard({
   // Day 11.5: scenario uses scenario-level setup_text; per-screen text is
   // null and the ScreenTextEditor should render a "not used" notice.
   usesSetupText: boolean;
+  hideTimer: boolean;
 }) {
   const [delPending, startDel] = useTransition();
 
@@ -614,7 +623,9 @@ function ScreenCard({
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0 ml-2">
-          <span className="text-xs text-zinc-400">{screen.timerSeconds}s</span>
+          {!hideTimer && (
+            <span className="text-xs text-zinc-400">{screen.timerSeconds}s</span>
+          )}
           <span className="text-zinc-400">{isExpanded ? '\u25BC' : '\u25B6'}</span>
         </div>
       </button>
@@ -624,7 +635,7 @@ function ScreenCard({
         <div className="border-t border-zinc-200 p-4 space-y-4 bg-zinc-50">
           <ScreenTextEditor screen={screen} usesSetupText={usesSetupText} />
           <PromptEditor screen={screen} />
-          <TimerEditor screen={screen} />
+          {!hideTimer && <TimerEditor screen={screen} />}
 
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-zinc-700">Options</h4>
@@ -1057,10 +1068,12 @@ function AddScreenForm({
   scenarioFk,
   nextSortOrder,
   onDone,
+  hideTimer,
 }: {
   scenarioFk: string;
   nextSortOrder: number;
   onDone: () => void;
+  hideTimer: boolean;
 }) {
   const [screenId, setScreenId] = useState('');
   const [text, setText] = useState('');
@@ -1091,17 +1104,19 @@ function AddScreenForm({
         rows={3}
         className="w-full px-3 py-2 border border-zinc-300 rounded text-sm"
       />
-      <div className="flex items-center gap-2">
-        <label className="text-sm text-zinc-600">Timer:</label>
-        <input
-          type="number"
-          value={timer}
-          onChange={(e) => setTimer(parseInt(e.target.value) || 30)}
-          min={1}
-          className="w-20 px-2 py-1 border border-zinc-300 rounded text-sm"
-        />
-        <span className="text-sm text-zinc-500">seconds</span>
-      </div>
+      {!hideTimer && (
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-zinc-600">Timer:</label>
+          <input
+            type="number"
+            value={timer}
+            onChange={(e) => setTimer(parseInt(e.target.value) || 30)}
+            min={1}
+            className="w-20 px-2 py-1 border border-zinc-300 rounded text-sm"
+          />
+          <span className="text-sm text-zinc-500">seconds</span>
+        </div>
+      )}
       <div className="flex gap-2">
         <button
           onClick={submit}

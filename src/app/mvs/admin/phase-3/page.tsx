@@ -163,5 +163,5 @@ async function AssessmentEditor({ row }: { row: PhaseAssessmentRow }) {
         },
       ]
     : [];
-  return <ScenarioBuilderTab scenario={scenario} scenarios={list} />;
+  return <ScenarioBuilderTab scenario={scenario} scenarios={list} hideTimer />;
 }
