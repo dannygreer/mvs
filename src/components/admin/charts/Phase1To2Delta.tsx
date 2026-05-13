@@ -13,7 +13,6 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
-  Cell,
 } from 'recharts';
 import type { ActiveThreatPair, MarkerAggregate } from '@/lib/dashboard';
 
@@ -169,19 +168,9 @@ function MarkerReductionChart({ markers }: { markers: MarkerAggregate[] }) {
           />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Bar dataKey="pre" name="Pre" fill="#a1a1aa" radius={[2, 2, 0, 0]} />
-          <Bar dataKey="post" name="Post" fill="#0891b2" radius={[2, 2, 0, 0]}>
-            {data.map((d, i) => (
-              <Cell
-                key={i}
-                fill={d.post <= d.pre ? '#0891b2' : '#dc2626'}
-              />
-            ))}
-          </Bar>
+          <Bar dataKey="post" name="Post" fill="#0891b2" radius={[2, 2, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
-      <p className="mvs-mono text-[10px] text-zinc-400 mt-2 uppercase tracking-widest">
-        Lower post (cyan) = doctrine improvement. Higher post (red) = regression.
-      </p>
     </>
   );
 }
