@@ -64,8 +64,12 @@ export default function SummaryTab({
   }
 
   // === Branch path frequency ===
+  // Only counts rows where branch_path is non-empty. Linear scenarios
+  // (Phase 3 video Q1->Q4) write '' here on purpose; including them
+  // would dominate the chart with a meaningless "(empty)" bucket.
   const pathCounts: Record<string, number> = {};
   for (const r of responsesWide) {
+    if (!r.branch_path) continue;
     pathCounts[r.branch_path] = (pathCounts[r.branch_path] || 0) + 1;
   }
   const sortedPaths = Object.entries(pathCounts).sort(
