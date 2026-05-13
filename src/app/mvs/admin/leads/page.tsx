@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { requireSuperAdmin } from '@/lib/auth';
 import { updateLeadStatus } from '@/actions/leads';
+import { formatAdminDateTime } from '@/lib/adminFormat';
 
 export const dynamic = 'force-dynamic';
 
@@ -139,7 +140,7 @@ export default async function LeadsPage() {
                       </form>
                     </td>
                     <td className="px-4 py-3 text-zinc-500 text-xs whitespace-nowrap">
-                      {new Date(l.created_at).toLocaleString()}
+                      {formatAdminDateTime(l.created_at)}
                     </td>
                   </tr>
                 ))}

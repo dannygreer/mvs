@@ -1,12 +1,12 @@
 'use client';
 
-// Org-detail bottom panel: delete this org. Disabled while any roster
-// members remain (the admin must Remove or Delete them first via the
-// roster row controls). The server enforces the same rule; this is just
-// a UI affordance to make the precondition explicit.
+// Org-detail bottom panel. Two delete paths:
+//   - Delete this org    : works only when roster is empty.
+//   - Force delete       : ONLY shown when roster is non-empty; wipes
+//                          the org plus every member account.
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { deleteOrg, reenableOrg, forceDeleteOrg } from '@/actions/orgs';
+import { deleteOrg, forceDeleteOrg } from '@/actions/orgs';
 
 interface Props {
   orgId: string;
@@ -17,15 +17,14 @@ interface Props {
 export default function DangerZone({ orgId, orgName, rosterCount }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [reenabling, startReenable] = useTransition();
   const [forceOpen, setForceOpen] = useState(false);
   const [forceTyped, setForceTyped] = useState('');
   const [forcing, startForce] = useTransition();
-  const disabled = rosterCount > 0;
+  const hasRoster = rosterCount > 0;
   const forceConfirmText = `delete ${orgName}`;
 
   const onClick = () => {
-    if (disabled) return;
+    if (hasRoster) return;
     if (
       !window.confirm(
         `Delete org "${orgName}" permanently? This cannot be undone.`,
@@ -39,18 +38,6 @@ export default function DangerZone({ orgId, orgName, rosterCount }: Props) {
         router.replace('/mvs/admin/orgs');
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Delete failed';
-        window.alert(msg);
-      }
-    });
-  };
-
-  const onReenable = () => {
-    startReenable(async () => {
-      try {
-        await reenableOrg(orgId);
-        router.refresh();
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Re-enable failed';
         window.alert(msg);
       }
     });
@@ -75,11 +62,13 @@ export default function DangerZone({ orgId, orgName, rosterCount }: Props) {
         Danger Zone
       </h2>
       <p className="text-sm text-zinc-600 mb-4">
-        {disabled ? (
+        {hasRoster ? (
           <>
-            This org still has <strong>{rosterCount}</strong> roster member
-            {rosterCount === 1 ? '' : 's'}. Remove or delete everyone in the
-            Roster + Org admins tables above before you can delete the org.
+            This org has <strong>{rosterCount}</strong> roster member
+            {rosterCount === 1 ? '' : 's'}. Remove each one from the Roster +
+            Org admins tables above to enable a clean delete, or use{' '}
+            <strong>Force delete</strong> to wipe the org and every account
+            in one step.
           </>
         ) : (
           <>
@@ -92,32 +81,25 @@ export default function DangerZone({ orgId, orgName, rosterCount }: Props) {
         <button
           type="button"
           onClick={onClick}
-          disabled={disabled || pending}
+          disabled={hasRoster || pending}
           className={`mvs-mono text-xs uppercase tracking-widest px-4 py-2 border transition-colors ${
-            disabled
+            hasRoster
               ? 'border-zinc-200 text-zinc-300 cursor-not-allowed'
               : 'border-red-500 text-red-600 hover:bg-red-50'
           }`}
         >
           {pending ? 'Deleting…' : 'Delete this org'}
         </button>
-        <button
-          type="button"
-          onClick={onReenable}
-          disabled={reenabling}
-          className="mvs-mono text-xs uppercase tracking-widest px-4 py-2 border border-zinc-300 text-zinc-700 hover:bg-zinc-50 transition-colors disabled:opacity-50"
-          title="Force this org's status back to 'active'."
-        >
-          {reenabling ? 'Re-enabling…' : 'Re-enable this org'}
-        </button>
-        <button
-          type="button"
-          onClick={() => setForceOpen(true)}
-          className="mvs-mono text-xs uppercase tracking-widest px-4 py-2 border border-red-700 bg-red-700 text-white hover:bg-red-800 transition-colors ml-auto"
-          title="Delete this org AND every account in its roster."
-        >
-          Force delete (org + roster)
-        </button>
+        {hasRoster && (
+          <button
+            type="button"
+            onClick={() => setForceOpen(true)}
+            className="mvs-mono text-xs uppercase tracking-widest px-4 py-2 border border-red-700 bg-red-700 text-white hover:bg-red-800 transition-colors ml-auto"
+            title="Delete this org AND every account in its roster."
+          >
+            Force delete (org + roster)
+          </button>
+        )}
       </div>
 
       {forceOpen && (

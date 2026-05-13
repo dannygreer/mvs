@@ -1,4 +1,5 @@
 import type { OrgRow } from '@/lib/db';
+import { ORG_TYPE_OPTIONS, ORG_TYPE_LABELS } from '@/lib/orgTypes';
 
 interface OrgFormProps {
   action: (formData: FormData) => void | Promise<void>;
@@ -6,7 +7,6 @@ interface OrgFormProps {
   submitLabel: string;
 }
 
-const TYPES = ['hospital', 'police', 'military', 'other'];
 const STATUSES = ['lead', 'active', 'completed', 'churned'];
 
 export default function OrgForm({ action, initial, submitLabel }: OrgFormProps) {
@@ -36,9 +36,9 @@ export default function OrgForm({ action, initial, submitLabel }: OrgFormProps) 
             className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-zinc-900 bg-white focus:outline-none focus:ring-2 focus:ring-zinc-900"
           >
             <option value="">—</option>
-            {TYPES.map((t) => (
+            {ORG_TYPE_OPTIONS.map((t) => (
               <option key={t} value={t}>
-                {t}
+                {ORG_TYPE_LABELS[t]}
               </option>
             ))}
           </select>

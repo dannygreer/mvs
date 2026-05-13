@@ -10,6 +10,7 @@ import SendPreInvitesPanel from '@/components/admin/SendPreInvitesPanel';
 import RosterRowActions from '@/components/admin/RosterRowActions';
 import RosterRowExpandable from '@/components/admin/RosterRowExpandable';
 import DangerZone from '@/components/admin/DangerZone';
+import { formatAdminDateTime, formatAdminDate } from '@/lib/adminFormat';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,7 +72,7 @@ export default async function OrgDetailPage({
               {org.name}
             </h1>
             <p className="mvs-mono text-[11px] uppercase tracking-widest text-zinc-500 mt-1">
-              Updated {new Date(org.updated_at).toLocaleString()}
+              Updated {formatAdminDateTime(org.updated_at)}
             </p>
           </div>
           <Link
@@ -135,7 +136,7 @@ export default async function OrgDetailPage({
                     <td className="px-4 py-2 text-zinc-900">{a.full_name ?? '—'}</td>
                     <td className="px-4 py-2 text-zinc-600">{a.email ?? '—'}</td>
                     <td className="px-4 py-2 text-zinc-500">
-                      {new Date(a.created_at).toLocaleDateString()}
+                      {formatAdminDate(a.created_at)}
                     </td>
                     <td className="px-4 py-2">
                       <RosterRowActions

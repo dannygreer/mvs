@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { requireSuperAdmin } from '@/lib/auth';
 import { listOrgs } from '@/lib/db';
 import OrgListDeleteButton from '@/components/admin/OrgListDeleteButton';
+import { orgTypeLabel } from '@/lib/orgTypes';
+import { formatAdminDate } from '@/lib/adminFormat';
 
 export const dynamic = 'force-dynamic';
 
@@ -84,7 +86,7 @@ export default async function OrgsListPage() {
                         {o.name}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-zinc-600">{o.type ?? '—'}</td>
+                    <td className="px-4 py-3 text-zinc-600">{orgTypeLabel(o.type)}</td>
                     <td className="px-4 py-3">
                       <span
                         className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${
@@ -101,9 +103,7 @@ export default async function OrgsListPage() {
                       {o.student_count}
                     </td>
                     <td className="px-4 py-3 text-zinc-500">
-                      {o.session_date
-                        ? new Date(`${o.session_date}T00:00:00`).toLocaleDateString()
-                        : '—'}
+                      {formatAdminDate(o.session_date)}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <OrgListDeleteButton

@@ -109,7 +109,8 @@ function groupByStudent(rows: ResponseWideRow[]): StudentBundle[] {
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleDateString(undefined, {
+  return d.toLocaleDateString('en-US', {
+    timeZone: 'America/Chicago',
     month: 'short',
     day: 'numeric',
     year: 'numeric',

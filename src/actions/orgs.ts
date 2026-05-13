@@ -531,22 +531,6 @@ export async function forceDeleteOrg(orgId: string): Promise<void> {
   revalidatePath('/mvs/admin/orgs');
 }
 
-// Force orgs.status back to 'active'. Useful when an org has been marked
-// 'churned' or 'completed' (manually or via a future disable flow) and the
-// super_admin wants to bring it back into the active list with one click.
-export async function reenableOrg(orgId: string): Promise<void> {
-  await requireSuperAdmin();
-  const client = adminClient();
-  const { error } = await client
-    .from('orgs')
-    .update({ status: 'active' })
-    .eq('id', orgId);
-  if (error) throw new Error(`Re-enable failed: ${error.message}`);
-
-  revalidatePath('/mvs/admin/orgs');
-  revalidatePath(`/mvs/admin/orgs/${orgId}`);
-}
-
 export async function removeStudentFromOrg(
   orgId: string,
   studentId: string,

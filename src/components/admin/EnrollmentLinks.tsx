@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { resetEnrollment } from '@/actions/orgs';
+import { formatAdminDate } from '@/lib/adminFormat';
 
 interface Link {
   id: string;
@@ -58,7 +59,7 @@ export default function EnrollmentLinks({ links }: EnrollmentLinksProps) {
             type="button"
             onClick={() => copy(l.url, l.id)}
             disabled={!!l.completed_at}
-            title={l.completed_at ? `Completed ${new Date(l.completed_at).toLocaleDateString()}` : l.url}
+            title={l.completed_at ? `Completed ${formatAdminDate(l.completed_at)}` : l.url}
             className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded border transition-colors ${
               l.completed_at
                 ? 'border-zinc-200 text-zinc-400 line-through'

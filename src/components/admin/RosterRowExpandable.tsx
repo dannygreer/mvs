@@ -7,6 +7,7 @@
 // same table flow with a colSpan.
 import { useState, useTransition } from 'react';
 import { resetEnrollment } from '@/actions/orgs';
+import { formatAdminDate } from '@/lib/adminFormat';
 
 interface Enrollment {
   id: string;
@@ -63,7 +64,7 @@ export default function RosterRowExpandable({
           {completedCount}
         </td>
         <td className="px-4 py-3 text-zinc-500">
-          {new Date(createdAt).toLocaleDateString()}
+          {formatAdminDate(createdAt)}
         </td>
         <td className="px-4 py-3">{actions}</td>
       </tr>
@@ -150,7 +151,7 @@ function EnrollmentLine({
         </span>
         {completed && (
           <span className="mvs-mono text-[10px] uppercase tracking-widest text-zinc-400">
-            done {new Date(enrollment.completed_at!).toLocaleDateString()}
+            done {formatAdminDate(enrollment.completed_at)}
           </span>
         )}
       </div>
