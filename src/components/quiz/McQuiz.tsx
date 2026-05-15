@@ -8,8 +8,6 @@ import PreviewBanner from './PreviewBanner';
 import { submitMcAssessment, submitMcAssessmentByToken } from '@/actions/quiz';
 import type { McQuestion, McResponse, Phase } from '@/types';
 
-const DEFAULT_TIME_LIMIT_SECONDS = 30;
-
 type Step = 'in_progress' | 'submitting' | 'results' | 'error';
 
 interface McQuizProps {
@@ -121,7 +119,7 @@ export default function McQuiz({
 
   if (step === 'submitting') {
     return (
-      <div className="flex items-center justify-center flex-1 min-h-[60vh] text-zinc-300 bg-zinc-950">
+      <div className="flex items-center justify-center flex-1 min-h-[60vh] bg-zinc-950 mvs-mono text-xs uppercase tracking-widest text-zinc-400">
         Submitting your responses…
       </div>
     );
@@ -136,12 +134,17 @@ export default function McQuiz({
   if (step === 'error') {
     return (
       <div className="flex flex-col items-center justify-center flex-1 min-h-[60vh] bg-zinc-950 px-6">
-        <div className="w-full max-w-md bg-red-950 border border-red-700 rounded-xl p-8 text-center space-y-4">
-          <h1 className="text-xl font-bold text-white">Submission failed</h1>
-          <p className="text-red-200 text-sm">{errorMessage}</p>
+        <div
+          className="w-full max-w-md bg-zinc-950/60 backdrop-blur-sm p-8 text-center space-y-4"
+          style={{ border: '1px solid rgba(248,113,113,0.4)' }}
+        >
+          <h1 className="mvs-display text-xl font-bold uppercase tracking-wide text-zinc-100">
+            Submission failed
+          </h1>
+          <p className="text-zinc-400 text-sm">{errorMessage}</p>
           <Link
             href="/app"
-            className="inline-block mt-2 text-sm text-red-100 hover:underline"
+            className="inline-block mt-2 mvs-mono text-[11px] uppercase tracking-widest text-[#F87171] hover:text-[#fca5a5]"
           >
             Back to assignments
           </Link>
@@ -156,7 +159,7 @@ export default function McQuiz({
       <McRunner
         key={questions[index].id}
         question={questions[index]}
-        defaultTimeLimitSeconds={DEFAULT_TIME_LIMIT_SECONDS}
+        total={questions.length}
         onResponse={handleResponse}
       />
     </>
