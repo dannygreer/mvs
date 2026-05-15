@@ -11,6 +11,7 @@ import { PHASE_META } from '@/lib/phases';
 import PhaseLanding, {
   type PhaseConfig,
 } from '@/components/student/PhaseLanding';
+import PreviewFloatingNotice from '@/components/admin/PreviewFloatingNotice';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,30 +63,17 @@ export default async function StudentLandingPreviewPage() {
     },
   ];
 
-  const banner = (
-    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-      <p className="mvs-mono text-[11px] uppercase tracking-widest text-amber-800">
-        Admin preview — student session-day landing
-      </p>
-      <p className="text-sm text-amber-900 mt-1">
-        This is exactly what a student sees after logging in, with all
-        phases shown active. The Start buttons open the existing admin
-        preview runs in a new tab — no responses are recorded. A real
-        student sees Phase 2 / 3 locked until the prior phase is
-        complete.
-      </p>
-    </div>
-  );
-
   return (
-    <PhaseLanding
-      eyebrow="Session day"
-      heading="Hi, Student."
-      intro="Three phases today. Complete each one in order — the next phase unlocks when you finish the previous."
-      phases={phases}
-      ctaLabel="Preview →"
-      ctaNewTab
-      banner={banner}
-    />
+    <>
+      <PhaseLanding
+        eyebrow="Session day"
+        heading="Hi, Student."
+        intro="Three phases today. Complete each one in order — the next phase unlocks when you finish the previous."
+        phases={phases}
+        ctaLabel="Preview →"
+        ctaNewTab
+      />
+      <PreviewFloatingNotice />
+    </>
   );
 }
