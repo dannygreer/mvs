@@ -1,37 +1,46 @@
-// Brevo SMTP transactional email client. Replaces the Resend integration
-// which required a subdomain MX record that Wix DNS can't add.
+// Generic SMTP transactional email client (currently MailerSend).
 //
-// Why SMTP instead of Brevo's REST API: Brevo gates API keys behind an
-// IP allowlist that doesn't accept wildcards wider than /10, which is
-// incompatible with Vercel's ephemeral egress IPs. SMTP auth uses the
-// login + key directly with no IP gate.
+// Provider-agnostic by design — we've cycled Resend → Brevo → MailerSend
+// fighting Wix DNS limits + IP allowlists. The code only knows "an SMTP
+// server"; swapping providers is purely an env-var change, no code edit.
 //
 // Env vars (all required except FROM_EMAIL):
-//   BREVO_SMTP_HOST   default 'smtp-relay.brevo.com'
-//   BREVO_SMTP_PORT   default '587'
-//   BREVO_SMTP_LOGIN  e.g. 'ab5bed001@smtp-brevo.com'
-//   BREVO_SMTP_KEY    e.g. 'xsmtpsib-...'
-//   BREVO_FROM_EMAIL  default 'MVS <team@mentalvelocitysystem.com>'
+//   SMTP_HOST        e.g. 'smtp.mailersend.net'
+//   SMTP_PORT        e.g. '587'
+//   SMTP_LOGIN       the SMTP username the provider generated
+//   SMTP_KEY         the SMTP password the provider generated
+//   SMTP_FROM_EMAIL  default 'MVS <team@mentalvelocitysystem.com>'
+//
+// Legacy BREVO_SMTP_* / RESEND_FROM_EMAIL names are still read as
+// fallbacks so an in-flight deploy doesn't break mid-rollout.
 
 import nodemailer, { type Transporter } from 'nodemailer';
 
 let cachedTransporter: Transporter | null = null;
 
+function env(primary: string, ...fallbacks: string[]): string | undefined {
+  for (const k of [primary, ...fallbacks]) {
+    const v = process.env[k];
+    if (v) return v;
+  }
+  return undefined;
+}
+
 function getTransporter(): Transporter {
   if (cachedTransporter) return cachedTransporter;
-  const host = process.env.BREVO_SMTP_HOST ?? 'smtp-relay.brevo.com';
-  const port = Number(process.env.BREVO_SMTP_PORT ?? 587);
-  const user = process.env.BREVO_SMTP_LOGIN;
-  const pass = process.env.BREVO_SMTP_KEY;
+  const host = env('SMTP_HOST', 'BREVO_SMTP_HOST') ?? 'smtp.mailersend.net';
+  const port = Number(env('SMTP_PORT', 'BREVO_SMTP_PORT') ?? 587);
+  const user = env('SMTP_LOGIN', 'BREVO_SMTP_LOGIN');
+  const pass = env('SMTP_KEY', 'BREVO_SMTP_KEY');
   if (!user || !pass) {
     throw new Error(
-      'BREVO_SMTP_LOGIN and BREVO_SMTP_KEY must be set in the environment.',
+      'SMTP_LOGIN and SMTP_KEY must be set in the environment.',
     );
   }
   cachedTransporter = nodemailer.createTransport({
     host,
     port,
-    secure: port === 465, // 587 uses STARTTLS, 465 uses TLS-on-connect
+    secure: port === 465, // 587 = STARTTLS, 465 = TLS-on-connect
     auth: { user, pass },
   });
   return cachedTransporter;
@@ -68,6 +77,5 @@ export async function sendEmail(args: SendEmailArgs): Promise<SendEmailResult> {
 }
 
 export const FROM_EMAIL =
-  process.env.BREVO_FROM_EMAIL ??
-  process.env.RESEND_FROM_EMAIL ?? // legacy fallback during transition
+  env('SMTP_FROM_EMAIL', 'BREVO_FROM_EMAIL', 'RESEND_FROM_EMAIL') ??
   'MVS <team@mentalvelocitysystem.com>';
