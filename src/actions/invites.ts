@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { requireSuperAdmin } from '@/lib/auth';
-import { FROM_EMAIL, resendClient } from '@/lib/email';
+import { FROM_EMAIL, sendEmail } from '@/lib/email';
 
 // Send pre-assessment invites for an org.
 // One email per student (not per enrollment) — if a student has multiple
@@ -175,7 +175,6 @@ export async function sendPreInvites(
     byStudent.set(e.student_id, arr);
   }
 
-  const client = resendClient();
   const rows: InviteEmailRow[] = [];
 
   for (const p of profiles) {
@@ -230,7 +229,7 @@ export async function sendPreInvites(
     });
 
     try {
-      const { error: sendErr } = await client.emails.send({
+      const { error: sendErr } = await sendEmail({
         from: FROM_EMAIL,
         to: email,
         subject,
