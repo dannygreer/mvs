@@ -24,7 +24,7 @@ export default async function ScenarioPreviewPage({
   if (!scenario) notFound();
 
   return (
-    <div className="flex flex-col flex-1 min-h-screen bg-white">
+    <div className="flex flex-col flex-1 min-h-screen bg-zinc-950">
       <Quiz
         scenario={scenario}
         previewMode

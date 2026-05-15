@@ -21,14 +21,14 @@ function ScenarioBackdrop({
 }) {
   return (
     <>
-      <div className="absolute inset-0 -z-10 bg-zinc-950" />
+      <div className="absolute inset-0 bg-zinc-950" />
       <div
-        className="absolute inset-0 -z-10 bg-cover bg-center bg-no-repeat opacity-[0.18] grayscale mix-blend-luminosity"
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-[0.18] grayscale mix-blend-luminosity"
         style={{ backgroundImage: `url('${bgImage}')` }}
       />
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_30%_30%,#0e1422_0%,#050810_60%,#000_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_30%,#0e1422_0%,#050810_60%,#000_100%)]" />
       {tint === 'urgent' && (
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_50%_40%,rgba(153,27,27,0.28)_0%,transparent_70%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_40%,rgba(153,27,27,0.28)_0%,transparent_70%)]" />
       )}
     </>
   );
@@ -92,7 +92,7 @@ export function ReadScreen({ screen, screenNumber, onContinue }: ReadScreenProps
     <div className="relative flex flex-col items-center justify-center flex-1 px-6 py-10">
       <ScenarioBackdrop bgImage={bgImage} tint="neutral" />
 
-      <div className="relative w-full max-w-2xl space-y-8">
+      <div className="relative z-10 w-full max-w-2xl space-y-8">
         <HudPanel label="Scenario" code={`STEP ${String(screenNumber).padStart(2, '0')}`}>
           <p className="mvs-body text-lg sm:text-xl text-zinc-200 leading-relaxed whitespace-pre-line">
             {screen.text ?? ''}
@@ -256,7 +256,7 @@ export function AnswerScreen({
     <div className="relative flex flex-col items-center justify-center flex-1 px-6 py-10">
       <ScenarioBackdrop bgImage={bgImage} tint="urgent" />
 
-      <div className="relative w-full max-w-2xl space-y-6">
+      <div className="relative z-10 w-full max-w-2xl space-y-6">
         <div className="flex items-center justify-between">
           <span className="mvs-mono text-[10px] uppercase tracking-[0.25em] text-[#4FA9F0]">
             Step {String(screenNumber).padStart(2, '0')}

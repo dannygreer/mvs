@@ -90,7 +90,7 @@ export default async function TakeAssessmentPage({
     if (!scenario) notFound();
 
     return (
-      <div className="flex flex-col flex-1 min-h-[80vh] bg-white">
+      <div className="flex flex-col flex-1 min-h-[80vh] bg-zinc-950">
         <Quiz
           scenario={scenario}
           enrollmentId={enrollment.id}
