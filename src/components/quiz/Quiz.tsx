@@ -81,7 +81,10 @@ export default function Quiz({
   previewMode,
   nextHref,
 }: QuizProps) {
-  const isEnrolled = !!enrollmentId || !!token;
+  // Preview runs are treated like enrolled runs for navigation: skip
+  // the name/phase title screen and jump straight into the assessment
+  // (preview records nothing, so identity capture is meaningless).
+  const isEnrolled = !!enrollmentId || !!token || !!previewMode;
   // Initial step decided by pickStartingStep (video > setup > reading,
   // with 'title' fallback for the anonymous walk-in path).
   const initialStep: Step = scenario
