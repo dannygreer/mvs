@@ -49,24 +49,17 @@ export default function StudentLandingPreviewToggle({
 
   return (
     <>
-      {/* Marketing-site backdrop: near-white lab() base with a soft
-          light-blue/slate radial glow centered above the cards. */}
-      <div
-        className="fixed inset-0 -z-10"
-        style={{
-          backgroundColor: 'lab(96.1634% .0993311 -.364041)',
-          backgroundImage:
-            'radial-gradient(ellipse 70% 60% at 50% 38%, rgba(219,234,254,0.55), rgba(241,245,249,0.35) 45%, transparent 78%)',
-        }}
-      />
-      <div className="fixed top-4 right-4 z-50 flex rounded-lg border border-zinc-300 bg-white shadow-md overflow-hidden mvs-mono text-[10px] uppercase tracking-widest">
+      {/* Backdrop is owned by PhaseLanding (shared with real /app) so
+          the preview and the live student page never diverge. Only the
+          admin overlays below are preview-only. */}
+      <div className="fixed top-4 right-4 z-50 flex rounded-lg border border-zinc-700 bg-zinc-900 shadow-md overflow-hidden mvs-mono text-[10px] uppercase tracking-widest">
         <button
           type="button"
           onClick={() => setMode('student')}
           className={`px-3 py-2 transition-colors ${
             isStudent
-              ? 'bg-zinc-900 text-white'
-              : 'text-zinc-600 hover:bg-zinc-100'
+              ? 'bg-[#016FD4] text-white'
+              : 'text-zinc-400 hover:bg-zinc-800'
           }`}
         >
           Student view
@@ -76,8 +69,8 @@ export default function StudentLandingPreviewToggle({
           onClick={() => setMode('preview')}
           className={`px-3 py-2 transition-colors ${
             !isStudent
-              ? 'bg-zinc-900 text-white'
-              : 'text-zinc-600 hover:bg-zinc-100'
+              ? 'bg-[#016FD4] text-white'
+              : 'text-zinc-400 hover:bg-zinc-800'
           }`}
         >
           Preview view
@@ -91,7 +84,6 @@ export default function StudentLandingPreviewToggle({
         phases={isStudent ? studentPhases : previewPhases}
         ctaLabel={isStudent ? 'Start →' : 'Preview →'}
         ctaNewTab
-        logo
       />
     </>
   );
