@@ -28,7 +28,37 @@ function ScenarioBackdrop({
       />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_30%,#0e1422_0%,#050810_60%,#000_100%)]" />
       {tint === 'urgent' && (
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_40%,rgba(153,27,27,0.28)_0%,transparent_70%)]" />
+        <>
+          {/* Erratic red pulse — deliberately irregular timing + swing so
+              it reads as threat/pressure, not a calm breathing glow. The
+              whole assessment measures decision-making under stress; this
+              is an ambient stressor, not a progress/go-faster cue. */}
+          <style>{`
+            @keyframes threat-pulse {
+              0%   { opacity: .20; }
+              5%   { opacity: .58; }
+              7%   { opacity: .16; }
+              18%  { opacity: .40; }
+              20%  { opacity: .64; }
+              23%  { opacity: .18; }
+              41%  { opacity: .52; }
+              43%  { opacity: .12; }
+              60%  { opacity: .60; }
+              63%  { opacity: .24; }
+              79%  { opacity: .10; }
+              82%  { opacity: .56; }
+              91%  { opacity: .30; }
+              100% { opacity: .20; }
+            }
+          `}</style>
+          <div
+            className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_40%,rgba(180,20,20,0.55)_0%,transparent_70%)]"
+            style={{
+              animation: 'threat-pulse 2.4s linear infinite',
+              willChange: 'opacity',
+            }}
+          />
+        </>
       )}
     </>
   );
