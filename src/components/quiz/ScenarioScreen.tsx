@@ -29,32 +29,43 @@ function ScenarioBackdrop({
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_30%,#0e1422_0%,#050810_60%,#000_100%)]" />
       {tint === 'urgent' && (
         <>
-          {/* Erratic red pulse — deliberately irregular timing + swing so
-              it reads as threat/pressure, not a calm breathing glow. The
-              whole assessment measures decision-making under stress; this
-              is an ambient stressor, not a progress/go-faster cue. */}
+          {/* Erratic red threat field — NOT a rhythmic pulse. It mostly
+              sits at a low steady wash, then jolts hard at irregular,
+              widely-spaced moments. Two layers with coprime durations
+              overlap so the combined pattern never visibly repeats —
+              reads as unstable/threatening rather than a blinking light.
+              Ambient stressor for the under-pressure measurement; still
+              doctrine-safe (no progress bar / countdown nag). */}
           <style>{`
-            @keyframes threat-pulse {
-              0%   { opacity: .20; }
-              5%   { opacity: .58; }
-              7%   { opacity: .16; }
-              18%  { opacity: .40; }
-              20%  { opacity: .64; }
-              23%  { opacity: .18; }
-              41%  { opacity: .52; }
-              43%  { opacity: .12; }
-              60%  { opacity: .60; }
-              63%  { opacity: .24; }
-              79%  { opacity: .10; }
-              82%  { opacity: .56; }
-              91%  { opacity: .30; }
-              100% { opacity: .20; }
+            @keyframes threat-jolt-a {
+              0%, 22%   { opacity: .16; }
+              24%       { opacity: .62; }
+              26%, 27%  { opacity: .14; }
+              28%       { opacity: .50; }
+              30%, 70%  { opacity: .17; }
+              72%       { opacity: .66; }
+              74%       { opacity: .15; }
+              100%      { opacity: .16; }
+            }
+            @keyframes threat-jolt-b {
+              0%, 48%   { opacity: 0; }
+              50%       { opacity: .40; }
+              52%       { opacity: 0; }
+              53%       { opacity: .30; }
+              55%, 100% { opacity: 0; }
             }
           `}</style>
           <div
-            className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_40%,rgba(180,20,20,0.55)_0%,transparent_70%)]"
+            className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_40%,rgba(180,20,20,0.6)_0%,transparent_70%)]"
             style={{
-              animation: 'threat-pulse 2.4s linear infinite',
+              animation: 'threat-jolt-a 9.3s steps(1,end) infinite',
+              willChange: 'opacity',
+            }}
+          />
+          <div
+            className="absolute inset-0 bg-[radial-gradient(ellipse_at_38%_62%,rgba(200,30,30,0.7)_0%,transparent_60%)]"
+            style={{
+              animation: 'threat-jolt-b 5.7s steps(1,end) infinite',
               willChange: 'opacity',
             }}
           />
