@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import type {
   Scenario,
   ScenarioScreen,
@@ -1011,19 +1011,29 @@ function OptionEditor({
 // always reflects the explicit truth set (omitted keys default to false at
 // query time via `?? false`).
 function OptionMarkerEditor({ option }: { option: ScenarioOption }) {
+  const initialMarkers = () =>
+    Object.fromEntries(
+      MARKER_KEYS.map((k) => [k, !!option.triggersMarkers?.[k]]),
+    ) as Record<string, boolean>;
   const [markers, setMarkers] = useState<Record<string, boolean>>(
-    () =>
-      Object.fromEntries(MARKER_KEYS.map((k) => [k, !!option.triggersMarkers?.[k]])) as
-        Record<string, boolean>,
+    initialMarkers,
   );
+  // Ref mirrors the latest committed markers so rapid double-clicks stay
+  // race-safe WITHOUT putting side effects inside the setState updater
+  // (illegal in React 19 — updaters must be pure).
+  const markersRef = useRef(markers);
   const [pending, startTransition] = useTransition();
 
   const toggle = (key: MarkerKey) => {
-    // Functional updater: prevents stale-closure races on rapid double-clicks.
-    setMarkers((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
-      startTransition(() => adminUpdateScreenOptionMarkers(option.id, next));
-      return next;
+    const next = { ...markersRef.current, [key]: !markersRef.current[key] };
+    markersRef.current = next;
+    setMarkers(next);
+    startTransition(async () => {
+      try {
+        await adminUpdateScreenOptionMarkers(option.id, next);
+      } catch (e) {
+        console.error('Marker save failed', e);
+      }
     });
   };
 

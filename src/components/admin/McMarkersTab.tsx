@@ -12,7 +12,7 @@
 // props (this file is 'use client'); never propagate it into a
 // student-facing route.
 
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import {
   adminUpdateMcOptionMarkers,
   adminUpdateMcQuestionPrompt,
@@ -197,6 +197,7 @@ function McOptionRow({
         MARKER_KEYS.map((k) => [k, !!initialMarkers?.[k]]),
       ) as Record<string, boolean>,
   );
+  const markersRef = useRef(markers);
   const [pending, startTransition] = useTransition();
 
   const saveText = () => {
@@ -227,10 +228,20 @@ function McOptionRow({
   };
 
   const toggleMarker = (key: MarkerKey) => {
-    setMarkers((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
-      startTransition(() => adminUpdateMcOptionMarkers(optionId, next));
-      return next;
+    // Ref-mirrored so rapid double-clicks stay race-safe without a
+    // side effect inside the setState updater (illegal in React 19).
+    const next = {
+      ...markersRef.current,
+      [key]: !markersRef.current[key],
+    };
+    markersRef.current = next;
+    setMarkers(next);
+    startTransition(async () => {
+      try {
+        await adminUpdateMcOptionMarkers(optionId, next);
+      } catch (e) {
+        console.error('MC marker save failed', e);
+      }
     });
   };
 
