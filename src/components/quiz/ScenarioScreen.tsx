@@ -43,7 +43,7 @@ function HudPanel({
   children,
 }: {
   label: string;
-  code: string;
+  code?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -67,9 +67,11 @@ function HudPanel({
           <span className="text-[10px] uppercase tracking-[0.25em] text-[#4FA9F0]">
             {label}
           </span>
-          <span className="text-[10px] uppercase tracking-widest text-zinc-500 tabular-nums">
-            {code}
-          </span>
+          {code && (
+            <span className="text-[10px] uppercase tracking-widest text-zinc-500 tabular-nums">
+              {code}
+            </span>
+          )}
         </div>
         <div className="p-6 sm:p-8">{children}</div>
       </div>
@@ -93,7 +95,7 @@ export function ReadScreen({ screen, screenNumber, onContinue }: ReadScreenProps
       <ScenarioBackdrop bgImage={bgImage} tint="neutral" />
 
       <div className="relative z-10 w-full max-w-2xl space-y-8">
-        <HudPanel label="Scenario" code={`STEP ${String(screenNumber).padStart(2, '0')}`}>
+        <HudPanel label={`Question ${String(screenNumber).padStart(2, '0')}`}>
           <p className="mvs-body text-lg sm:text-xl text-zinc-200 leading-relaxed whitespace-pre-line">
             {screen.text ?? ''}
           </p>
@@ -259,7 +261,7 @@ export function AnswerScreen({
       <div className="relative z-10 w-full max-w-2xl space-y-6">
         <div className="flex items-center justify-between">
           <span className="mvs-mono text-[10px] uppercase tracking-[0.25em] text-[#F87171]">
-            Step {String(screenNumber).padStart(2, '0')}
+            Question {String(screenNumber).padStart(2, '0')}
           </span>
           <CountdownTimer
             seconds={screen.timerSeconds}
