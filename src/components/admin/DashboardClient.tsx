@@ -108,12 +108,20 @@ function SectionCertification({
 // ---------------------------------------------------------------------
 function PrintDeckLink() {
   return (
-    <p className="text-center pt-4">
+    <p className="text-center pt-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
       <a
         href="/mvs/admin/pitch"
         className="mvs-mono text-[10px] uppercase tracking-widest text-zinc-500 hover:text-zinc-700"
       >
         Print pitch deck view →
+      </a>
+      <a
+        href="/mvs/admin/preview/student-landing"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mvs-mono text-[10px] uppercase tracking-widest text-zinc-500 hover:text-zinc-700"
+      >
+        Preview student landing ↗
       </a>
     </p>
   );
