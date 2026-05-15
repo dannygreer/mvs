@@ -382,6 +382,11 @@ export default function Quiz({
           screen={screen}
           screenNumber={screenIndex + 1}
           commitmentMode={scenario.commitmentMode}
+          // Pressure (timer + red threat field) only for the
+          // active-threat branching scenario (Phase 1/2). Recognition-
+          // test scenarios (video/setup → Phase 3) are self-paced, calm,
+          // brand-blue.
+          pressure={!scenario.videoUrl && scenario.setupText === null}
           onResponse={handleAnswerEvent}
         />
       );

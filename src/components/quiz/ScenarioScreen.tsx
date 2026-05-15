@@ -181,6 +181,11 @@ interface AnswerScreenProps {
   screen: ScenarioScreenType;
   screenNumber: number;
   commitmentMode: 'locked' | 'revisable';
+  // Pressure mode = Phase 1/2 active-threat (timed, red threat field,
+  // red accents). When false (Phase 3 recognition-test scenarios) the
+  // screen is self-paced: no timer, no red flash, calm brand-blue
+  // accents matching the read phase.
+  pressure: boolean;
   // Locked mode: one terminal commit.
   // Revisable mode: emits an event per Change (revision_number=0 original,
   // then 1,2,...) AND a final commit. Quiz.tsx collates these into rows.
@@ -205,8 +210,10 @@ export function AnswerScreen({
   screen,
   screenNumber,
   commitmentMode,
+  pressure,
   onResponse,
 }: AnswerScreenProps) {
+  const accentColor = pressure ? '#F87171' : '#4FA9F0';
   const startTimeRef = useRef(Date.now());
   const answeredRef = useRef(false);
 
@@ -297,17 +304,25 @@ export function AnswerScreen({
 
   return (
     <div className="relative flex flex-col items-center justify-center flex-1 px-6 py-10">
-      <ScenarioBackdrop bgImage={bgImage} tint="urgent" />
+      <ScenarioBackdrop
+        bgImage={bgImage}
+        tint={pressure ? 'urgent' : 'neutral'}
+      />
 
       <div className="relative z-10 w-full max-w-2xl space-y-6">
         <div className="flex items-center justify-between">
-          <span className="mvs-mono text-[10px] uppercase tracking-[0.25em] text-[#F87171]">
+          <span
+            className="mvs-mono text-[10px] uppercase tracking-[0.25em]"
+            style={{ color: accentColor }}
+          >
             Question {String(screenNumber).padStart(2, '0')}
           </span>
-          <CountdownTimer
-            seconds={screen.timerSeconds}
-            onTimeout={handleTimeout}
-          />
+          {pressure && (
+            <CountdownTimer
+              seconds={screen.timerSeconds}
+              onTimeout={handleTimeout}
+            />
+          )}
         </div>
 
         <div className="space-y-3">
@@ -333,7 +348,10 @@ export function AnswerScreen({
                     : '1px solid rgba(1,111,212,0.25)',
                 }}
               >
-                <span className="mvs-mono text-[#F87171] mr-3">
+                <span
+                  className="mvs-mono mr-3"
+                  style={{ color: accentColor }}
+                >
                   {option.label}.
                 </span>
                 {option.text}
@@ -346,7 +364,7 @@ export function AnswerScreen({
           <div className="space-y-3">
             <p className="text-center mvs-mono text-xs uppercase tracking-widest text-zinc-400">
               Locked in:{' '}
-              <span className="text-[#4FA9F0] font-bold">
+              <span className="font-bold" style={{ color: accentColor }}>
                 {pendingPick.option.label}.
               </span>
             </p>
