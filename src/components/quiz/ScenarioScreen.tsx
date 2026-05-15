@@ -258,7 +258,7 @@ export function AnswerScreen({
 
       <div className="relative z-10 w-full max-w-2xl space-y-6">
         <div className="flex items-center justify-between">
-          <span className="mvs-mono text-[10px] uppercase tracking-[0.25em] text-[#4FA9F0]">
+          <span className="mvs-mono text-[10px] uppercase tracking-[0.25em] text-[#F87171]">
             Step {String(screenNumber).padStart(2, '0')}
           </span>
           <CountdownTimer
