@@ -1,16 +1,14 @@
-// Admin preview of the student session-day landing. Renders the exact
-// 3-phase UI a student sees, but with synthetic "all phases active"
-// state and the Start buttons deep-linked into the existing admin
-// preview routes (no data recorded). No real student / enrollment is
-// involved — this is purely a layout + flow walkthrough.
+// Admin preview of the student session-day landing. A top-right switch
+// toggles between PREVIEW VIEW (all phases active, buttons deep-link
+// into the admin preview runs) and STUDENT VIEW (exact student gating —
+// Phase 1 active, 2 & 3 locked). No real student / enrollment involved;
+// nothing is recorded.
 //
 // Route: /mvs/admin/preview/student-landing
 import { requireSuperAdmin } from '@/lib/auth';
 import { getScenarioByCode, listAssessmentsByCodes } from '@/lib/db';
 import { PHASE_META } from '@/lib/phases';
-import PhaseLanding, {
-  type PhaseConfig,
-} from '@/components/student/PhaseLanding';
+import StudentLandingPreviewToggle from '@/components/admin/StudentLandingPreviewToggle';
 import PreviewFloatingNotice from '@/components/admin/PreviewFloatingNotice';
 
 export const dynamic = 'force-dynamic';
@@ -36,42 +34,11 @@ export default async function StudentLandingPreviewPage() {
     ? `/mvs/admin/preview/test-bank/${testBank.id}`
     : null;
 
-  const phases: PhaseConfig[] = [
-    {
-      number: 1,
-      title: PHASE_META.phase_1.name,
-      description:
-        'Baseline measurement before training. Quick branching scenario.',
-      state: 'active',
-      href: scenarioHref,
-    },
-    {
-      number: 2,
-      title: PHASE_META.phase_2.name,
-      description:
-        'Retake the same scenario at the end of the day. We measure how your decisions changed.',
-      state: 'active',
-      href: scenarioHref,
-    },
-    {
-      number: 3,
-      title: PHASE_META.phase_3.name,
-      description:
-        'End-of-day certification: written test + five video scenarios. Each one starts automatically when the previous finishes.',
-      state: 'active',
-      href: phase3Href,
-    },
-  ];
-
   return (
     <>
-      <PhaseLanding
-        eyebrow="Session day"
-        heading="Hi, Student."
-        intro="Three phases today. Complete each one in order — the next phase unlocks when you finish the previous."
-        phases={phases}
-        ctaLabel="Preview →"
-        ctaNewTab
+      <StudentLandingPreviewToggle
+        scenarioHref={scenarioHref}
+        phase3Href={phase3Href}
       />
       <PreviewFloatingNotice />
     </>
