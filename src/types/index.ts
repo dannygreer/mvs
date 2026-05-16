@@ -20,8 +20,13 @@ export type MarkerKey =
   | 'recovery'
   | 'governance_instability';
 
-export type TriggersMarkers = Partial<Record<MarkerKey, boolean>> & {
-  [key: string]: boolean | undefined;
+// Phase A scoring realignment (Scully doctrine): markers carry an
+// INTEGER WEIGHT per option, not a boolean. e.g. escalation +3,
+// drift +2, recovery -2 (recovery negative = stabilizing). Absent
+// key = 0. Legacy boolean rows are read tolerantly server-side
+// (marker_weight(): true -> 1).
+export type TriggersMarkers = Partial<Record<MarkerKey, number>> & {
+  [key: string]: number | undefined;
 };
 
 export type CommitmentMode = 'locked' | 'revisable';
@@ -32,6 +37,9 @@ export interface ScenarioOption {
   text: string;
   nextScreenId: string | null;
   triggersMarkers: TriggersMarkers;
+  // Phase A doctrine fields (migration 0021). Null until tagged.
+  optionClassification: string | null;
+  rationale: string | null;
 }
 
 export interface ScenarioScreen {
@@ -124,7 +132,7 @@ export interface ResponseLongRow {
   student_id: string | null;
   // Phase 1 Freeze (migration 0012). All have DB defaults so write paths
   // can omit them; reads from select * always return the resolved values.
-  event_markers?: Record<string, boolean>;
+  event_markers?: Record<string, number>;
   presented_options?:
     | { id: string; label: string; text: string }[]
     | null;

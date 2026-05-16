@@ -19,6 +19,8 @@ import {
   updateScenarioVideo,
   updateScreenOptionMarkers,
   updateMcOptionMarkers,
+  updateScreenOptionDoctrine,
+  updateMcOptionDoctrine,
   updateMcQuestionPrompt,
   updateMcOptionText,
   setMcCorrectOption,
@@ -183,7 +185,7 @@ export async function adminUpdateScenarioVideo(
 // source of truth, and the admin page picks up the new values on next nav.
 export async function adminUpdateScreenOptionMarkers(
   optionDbId: string,
-  markers: Record<string, boolean>,
+  markers: Record<string, number>,
 ) {
   await requireAdmin();
   await updateScreenOptionMarkers(optionDbId, markers);
@@ -191,10 +193,29 @@ export async function adminUpdateScreenOptionMarkers(
 
 export async function adminUpdateMcOptionMarkers(
   optionDbId: string,
-  markers: Record<string, boolean>,
+  markers: Record<string, number>,
 ) {
   await requireAdmin();
   await updateMcOptionMarkers(optionDbId, markers);
+}
+
+// Phase A: per-option doctrine fields (Report Generation Logic §3.1).
+export async function adminUpdateScreenOptionDoctrine(
+  optionDbId: string,
+  patch: { option_classification?: string | null; rationale?: string | null },
+) {
+  await requireAdmin();
+  await updateScreenOptionDoctrine(optionDbId, patch);
+  revalidatePath('/mvs/admin', 'layout');
+}
+
+export async function adminUpdateMcOptionDoctrine(
+  optionDbId: string,
+  patch: { option_classification?: string | null; rationale?: string | null },
+) {
+  await requireAdmin();
+  await updateMcOptionDoctrine(optionDbId, patch);
+  revalidatePath('/mvs/admin', 'layout');
 }
 
 export async function adminUpdateMcQuestionPrompt(

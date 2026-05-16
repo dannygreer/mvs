@@ -39,6 +39,35 @@ export default function Phase1To2Delta({ pairs, markers }: Props) {
     ) / (pairs.filter((p) => p.post_first_rt != null).length || 1);
   const firstRtDelta = Math.round(firstRtPost - firstRtPre);
 
+  // Doctrine deltas (Report Generation Logic §4/§7). Average the
+  // paired metric across students who have a value on BOTH sides.
+  const avgDelta = (
+    pre: (p: ActiveThreatPair) => number | null,
+    post: (p: ActiveThreatPair) => number | null,
+  ) => {
+    const both = pairs.filter(
+      (p) => pre(p) != null && post(p) != null,
+    );
+    if (both.length === 0) return null;
+    const a = (sel: (p: ActiveThreatPair) => number | null) =>
+      both.reduce((s, p) => s + (sel(p) ?? 0), 0) / both.length;
+    const preAvg = a(pre);
+    const postAvg = a(post);
+    return { preAvg, postAvg, delta: postAvg - preAvg, n: both.length };
+  };
+  const ngl = avgDelta(
+    (p) => p.pre_net_governance_load,
+    (p) => p.post_net_governance_load,
+  );
+  const instab = avgDelta(
+    (p) => p.pre_instability_load,
+    (p) => p.post_instability_load,
+  );
+  const rtsd = avgDelta(
+    (p) => p.pre_rt_sd,
+    (p) => p.post_rt_sd,
+  );
+
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -107,6 +136,32 @@ export default function Phase1To2Delta({ pairs, markers }: Props) {
           )}
         </Card>
       </div>
+
+      <Card className="mt-4">
+        <CardTitle>Doctrine deltas (pre → post)</CardTitle>
+        {ngl == null && instab == null && rtsd == null ? (
+          <EmptyState text="No weighted-marker data yet. Populates once scenario options carry doctrine weights (5 screens seeded so far)." />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2">
+            <DoctrineDelta
+              label="Net Governance Load"
+              m={ngl}
+              hint="Lower post = improved governance"
+            />
+            <DoctrineDelta
+              label="Instability Load"
+              m={instab}
+              hint="Lower post = fewer instability markers"
+            />
+            <DoctrineDelta
+              label="RT SD (s)"
+              m={rtsd}
+              hint="Lower post = steadier timing"
+              decimals={2}
+            />
+          </div>
+        )}
+      </Card>
 
       <Card className="mt-4">
         <CardTitle>Event-marker reduction (pre vs post)</CardTitle>
@@ -231,6 +286,54 @@ function CardTitle({ children }: { children: React.ReactNode }) {
     <p className="mvs-mono text-[10px] uppercase tracking-widest text-zinc-500">
       {children}
     </p>
+  );
+}
+
+function DoctrineDelta({
+  label,
+  m,
+  hint,
+  decimals = 1,
+}: {
+  label: string;
+  m: { preAvg: number; postAvg: number; delta: number; n: number } | null;
+  hint: string;
+  decimals?: number;
+}) {
+  if (m == null) {
+    return (
+      <div className="border border-zinc-200 rounded-lg p-3">
+        <p className="mvs-mono text-[10px] uppercase tracking-widest text-zinc-500">
+          {label}
+        </p>
+        <p className="text-sm text-zinc-400 mt-2">No paired data</p>
+      </div>
+    );
+  }
+  // Lower post is the improvement direction for all three doctrine
+  // metrics (governance/instability load down, timing SD down).
+  const improved = m.delta < 0;
+  const fmt = (n: number) => n.toFixed(decimals);
+  return (
+    <div className="border border-zinc-200 rounded-lg p-3">
+      <p className="mvs-mono text-[10px] uppercase tracking-widest text-zinc-500">
+        {label}
+      </p>
+      <p className="mvs-display text-2xl font-bold text-zinc-900 mt-1">
+        {fmt(m.preAvg)} → {fmt(m.postAvg)}
+      </p>
+      <p
+        className={`mvs-mono text-[11px] mt-1 ${
+          improved ? 'text-emerald-600' : 'text-red-600'
+        }`}
+      >
+        Δ {m.delta >= 0 ? '+' : ''}
+        {fmt(m.delta)} {improved ? '↓ improved' : '↑ worse'}
+      </p>
+      <p className="text-[10px] text-zinc-400 mt-1">
+        {hint} · n={m.n}
+      </p>
+    </div>
   );
 }
 

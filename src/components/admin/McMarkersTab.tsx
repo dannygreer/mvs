@@ -12,36 +12,19 @@
 // props (this file is 'use client'); never propagate it into a
 // student-facing route.
 
-import { useRef, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import {
   adminUpdateMcOptionMarkers,
+  adminUpdateMcOptionDoctrine,
   adminUpdateMcQuestionPrompt,
   adminUpdateMcOptionText,
   adminSetMcCorrectOption,
 } from '@/actions/admin';
 import type { McAdminAssessment, McAdminQuestion } from '@/lib/db';
+import MarkerWeightGrid from './MarkerWeightGrid';
 
-const MARKER_KEYS = [
-  'escalation',
-  'narrowing',
-  'premature_commitment',
-  'sequencing_break',
-  'drift',
-  'intervention',
-  'recovery',
-  'governance_instability',
-] as const;
-type MarkerKey = (typeof MARKER_KEYS)[number];
-const MARKER_LABELS: Record<MarkerKey, string> = {
-  escalation: 'Escalation',
-  narrowing: 'Narrowing',
-  premature_commitment: 'Premature Commitment',
-  sequencing_break: 'Sequencing Break',
-  drift: 'Drift',
-  intervention: 'Intervention',
-  recovery: 'Recovery',
-  governance_instability: 'Governance Instability',
-};
+// Marker keys/labels/weights now live in MarkerWeightGrid (shared with
+// ScenarioBuilderTab — single source of truth post Phase A).
 
 export default function McMarkersTab({
   assessments,
@@ -122,6 +105,8 @@ function McQuestionRow({ question }: { question: McAdminQuestion }) {
             initialText={o.text}
             initialCorrect={o.isCorrect}
             initialMarkers={o.triggersMarkers}
+            initialClassification={o.optionClassification}
+            initialRationale={o.rationale}
           />
         ))}
       </div>
@@ -181,23 +166,20 @@ function McOptionRow({
   initialText,
   initialCorrect,
   initialMarkers,
+  initialClassification,
+  initialRationale,
 }: {
   questionId: string;
   optionId: string;
   label: 'A' | 'B' | 'C' | 'D';
   initialText: string;
   initialCorrect: boolean;
-  initialMarkers: Record<string, boolean>;
+  initialMarkers: Record<string, number>;
+  initialClassification: string | null;
+  initialRationale: string | null;
 }) {
   const [text, setText] = useState(initialText);
   const [isCorrect, setIsCorrect] = useState(initialCorrect);
-  const [markers, setMarkers] = useState<Record<string, boolean>>(
-    () =>
-      Object.fromEntries(
-        MARKER_KEYS.map((k) => [k, !!initialMarkers?.[k]]),
-      ) as Record<string, boolean>,
-  );
-  const markersRef = useRef(markers);
   const [pending, startTransition] = useTransition();
 
   const saveText = () => {
@@ -223,24 +205,6 @@ function McOptionRow({
         setIsCorrect(false); // rollback
         const msg = e instanceof Error ? e.message : 'Save failed';
         window.alert(msg);
-      }
-    });
-  };
-
-  const toggleMarker = (key: MarkerKey) => {
-    // Ref-mirrored so rapid double-clicks stay race-safe without a
-    // side effect inside the setState updater (illegal in React 19).
-    const next = {
-      ...markersRef.current,
-      [key]: !markersRef.current[key],
-    };
-    markersRef.current = next;
-    setMarkers(next);
-    startTransition(async () => {
-      try {
-        await adminUpdateMcOptionMarkers(optionId, next);
-      } catch (e) {
-        console.error('MC marker save failed', e);
       }
     });
   };
@@ -280,35 +244,13 @@ function McOptionRow({
         />
       </div>
       <div className="md:flex-1">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-[10px] uppercase tracking-wider font-semibold text-zinc-500">
-            Markers
-          </span>
-          {pending && (
-            <span className="text-[10px] text-zinc-400">Saving…</span>
-          )}
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
-          {MARKER_KEYS.map((k) => (
-            <label
-              key={k}
-              className={`flex items-center gap-1 text-xs cursor-pointer px-1 py-0.5 rounded ${
-                markers[k] ? 'bg-cyan-50 text-cyan-900' : 'text-zinc-600'
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={!!markers[k]}
-                onChange={() => toggleMarker(k)}
-                disabled={pending}
-                className="rounded"
-              />
-              <span className="truncate" title={MARKER_LABELS[k]}>
-                {MARKER_LABELS[k]}
-              </span>
-            </label>
-          ))}
-        </div>
+        <MarkerWeightGrid
+          initialMarkers={initialMarkers}
+          initialClassification={initialClassification}
+          initialRationale={initialRationale}
+          saveMarkers={(m) => adminUpdateMcOptionMarkers(optionId, m)}
+          saveDoctrine={(patch) => adminUpdateMcOptionDoctrine(optionId, patch)}
+        />
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import type {
   Scenario,
   ScenarioScreen,
@@ -22,30 +22,12 @@ import {
   adminUpdateScenarioSetupText,
   adminUpdateScenarioVideo,
   adminUpdateScreenOptionMarkers,
+  adminUpdateScreenOptionDoctrine,
 } from '@/actions/admin';
+import MarkerWeightGrid from './MarkerWeightGrid';
 
-// The 8 locked Phase 1 Freeze markers — same order everywhere they're shown.
-const MARKER_KEYS = [
-  'escalation',
-  'narrowing',
-  'premature_commitment',
-  'sequencing_break',
-  'drift',
-  'intervention',
-  'recovery',
-  'governance_instability',
-] as const;
-type MarkerKey = (typeof MARKER_KEYS)[number];
-const MARKER_LABELS: Record<MarkerKey, string> = {
-  escalation: 'Escalation',
-  narrowing: 'Narrowing',
-  premature_commitment: 'Premature Commitment',
-  sequencing_break: 'Sequencing Break',
-  drift: 'Drift',
-  intervention: 'Intervention',
-  recovery: 'Recovery',
-  governance_instability: 'Governance Instability',
-};
+// Marker keys/labels/weights live in MarkerWeightGrid (shared, single
+// source of truth post Phase A — Scully scoring realignment).
 
 // Classification-tag enum value lists, mirroring the migration 0012 checks.
 const CLASSIFICATION_FIELDS = [
@@ -1011,61 +993,17 @@ function OptionEditor({
 // always reflects the explicit truth set (omitted keys default to false at
 // query time via `?? false`).
 function OptionMarkerEditor({ option }: { option: ScenarioOption }) {
-  const initialMarkers = () =>
-    Object.fromEntries(
-      MARKER_KEYS.map((k) => [k, !!option.triggersMarkers?.[k]]),
-    ) as Record<string, boolean>;
-  const [markers, setMarkers] = useState<Record<string, boolean>>(
-    initialMarkers,
-  );
-  // Ref mirrors the latest committed markers so rapid double-clicks stay
-  // race-safe WITHOUT putting side effects inside the setState updater
-  // (illegal in React 19 — updaters must be pure).
-  const markersRef = useRef(markers);
-  const [pending, startTransition] = useTransition();
-
-  const toggle = (key: MarkerKey) => {
-    const next = { ...markersRef.current, [key]: !markersRef.current[key] };
-    markersRef.current = next;
-    setMarkers(next);
-    startTransition(async () => {
-      try {
-        await adminUpdateScreenOptionMarkers(option.id, next);
-      } catch (e) {
-        console.error('Marker save failed', e);
-      }
-    });
-  };
-
   return (
     <div className="mt-1 p-2 bg-zinc-50 border border-zinc-200 rounded">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-[10px] uppercase tracking-wider font-semibold text-zinc-500">
-          Markers
-        </span>
-        {pending && <span className="text-[10px] text-zinc-400">Saving\u2026</span>}
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
-        {MARKER_KEYS.map((k) => (
-          <label
-            key={k}
-            className={`flex items-center gap-1 text-xs cursor-pointer px-1 py-0.5 rounded ${
-              markers[k] ? 'bg-cyan-50 text-cyan-900' : 'text-zinc-600'
-            }`}
-          >
-            <input
-              type="checkbox"
-              checked={!!markers[k]}
-              onChange={() => toggle(k)}
-              disabled={pending}
-              className="rounded"
-            />
-            <span className="truncate" title={MARKER_LABELS[k]}>
-              {MARKER_LABELS[k]}
-            </span>
-          </label>
-        ))}
-      </div>
+      <MarkerWeightGrid
+        initialMarkers={option.triggersMarkers as Record<string, number>}
+        initialClassification={option.optionClassification}
+        initialRationale={option.rationale}
+        saveMarkers={(m) => adminUpdateScreenOptionMarkers(option.id, m)}
+        saveDoctrine={(patch) =>
+          adminUpdateScreenOptionDoctrine(option.id, patch)
+        }
+      />
     </div>
   );
 }

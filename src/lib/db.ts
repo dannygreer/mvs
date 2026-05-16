@@ -54,7 +54,11 @@ async function loadScenarioFromRow(
         nextScreenId: (o.next_screen_id as string) ?? null,
         // Phase 1 Freeze: triggers_markers JSONB; absent on older rows -> {}
         triggersMarkers:
-          (o.triggers_markers as Record<string, boolean> | null) ?? {},
+          (o.triggers_markers as Record<string, number> | null) ?? {},
+        // Phase A doctrine fields (migration 0021).
+        optionClassification:
+          (o.option_classification as string | null) ?? null,
+        rationale: (o.rationale as string | null) ?? null,
       }));
 
     screenMap[scr.screen_id as string] = {
@@ -225,7 +229,9 @@ export interface McAdminQuestion {
     label: 'A' | 'B' | 'C' | 'D';
     text: string;
     isCorrect: boolean;
-    triggersMarkers: Record<string, boolean>;
+    triggersMarkers: Record<string, number>;
+    optionClassification: string | null;
+    rationale: string | null;
   }[];
 }
 
@@ -244,7 +250,9 @@ export async function loadMcQuestionsForAdmin(
   const qIds = questions.map((q) => q.id as string);
   const { data: options, error: oErr } = await client
     .from('mc_options')
-    .select('id, question_id, label, text, is_correct, triggers_markers')
+    .select(
+      'id, question_id, label, text, is_correct, triggers_markers, option_classification, rationale',
+    )
     .in('question_id', qIds)
     .order('label');
   if (oErr) throw new Error(oErr.message);
@@ -258,7 +266,10 @@ export async function loadMcQuestionsForAdmin(
       text: o.text as string,
       isCorrect: !!o.is_correct,
       triggersMarkers:
-        (o.triggers_markers as Record<string, boolean> | null) ?? {},
+        (o.triggers_markers as Record<string, number> | null) ?? {},
+      optionClassification:
+        (o.option_classification as string | null) ?? null,
+      rationale: (o.rationale as string | null) ?? null,
     });
     byQuestion.set(o.question_id as string, arr);
   }
@@ -380,7 +391,7 @@ export async function insertResponsesLongChained(
   rows: (Omit<ResponseLongRow, 'id' | 'timestamp'> & {
     is_revision: boolean;
     revision_number: number;
-    event_markers: Record<string, boolean>;
+    event_markers: Record<string, number>;
     presented_options: { id: string; label: string; text: string }[] | null;
   })[],
 ): Promise<number[]> {
@@ -415,18 +426,18 @@ export async function insertResponsesLongChained(
 // reason we don't accept event_markers directly from the client.
 export async function getScreenOptionMarkers(
   optionIds: string[],
-): Promise<Map<string, Record<string, boolean>>> {
+): Promise<Map<string, Record<string, number>>> {
   if (optionIds.length === 0) return new Map();
   const { data, error } = await getClient()
     .from('screen_options')
     .select('id, triggers_markers')
     .in('id', optionIds);
   if (error) throw new Error(error.message);
-  const map = new Map<string, Record<string, boolean>>();
+  const map = new Map<string, Record<string, number>>();
   for (const r of data ?? []) {
     map.set(
       r.id as string,
-      (r.triggers_markers as Record<string, boolean> | null) ?? {},
+      (r.triggers_markers as Record<string, number> | null) ?? {},
     );
   }
   return map;
@@ -434,18 +445,18 @@ export async function getScreenOptionMarkers(
 
 export async function getMcOptionMarkers(
   optionIds: string[],
-): Promise<Map<string, Record<string, boolean>>> {
+): Promise<Map<string, Record<string, number>>> {
   if (optionIds.length === 0) return new Map();
   const { data, error } = await getClient()
     .from('mc_options')
     .select('id, triggers_markers')
     .in('id', optionIds);
   if (error) throw new Error(error.message);
-  const map = new Map<string, Record<string, boolean>>();
+  const map = new Map<string, Record<string, number>>();
   for (const r of data ?? []) {
     map.set(
       r.id as string,
-      (r.triggers_markers as Record<string, boolean> | null) ?? {},
+      (r.triggers_markers as Record<string, number> | null) ?? {},
     );
   }
   return map;
@@ -535,7 +546,7 @@ export async function updateScenarioVideo(
 // merged at the column level, not overwritten wholesale).
 export async function updateScreenOptionMarkers(
   optionDbId: string,
-  markers: Record<string, boolean>,
+  markers: Record<string, number>,
 ) {
   const { error } = await getClient()
     .from('screen_options')
@@ -546,11 +557,40 @@ export async function updateScreenOptionMarkers(
 
 export async function updateMcOptionMarkers(
   optionDbId: string,
-  markers: Record<string, boolean>,
+  markers: Record<string, number>,
 ) {
   const { error } = await getClient()
     .from('mc_options')
     .update({ triggers_markers: markers })
+    .eq('id', optionDbId);
+  if (error) throw new Error(error.message);
+}
+
+// Phase A doctrine fields (Report Generation Logic §3.1):
+// option_classification + rationale. Migration 0021.
+type OptionDoctrinePatch = {
+  option_classification?: string | null;
+  rationale?: string | null;
+};
+
+export async function updateScreenOptionDoctrine(
+  optionDbId: string,
+  patch: OptionDoctrinePatch,
+) {
+  const { error } = await getClient()
+    .from('screen_options')
+    .update(patch)
+    .eq('id', optionDbId);
+  if (error) throw new Error(error.message);
+}
+
+export async function updateMcOptionDoctrine(
+  optionDbId: string,
+  patch: OptionDoctrinePatch,
+) {
+  const { error } = await getClient()
+    .from('mc_options')
+    .update(patch)
     .eq('id', optionDbId);
   if (error) throw new Error(error.message);
 }

@@ -44,7 +44,23 @@ export interface ActiveThreatPair {
   path_diverged: boolean;
   pre_first_rt: number | null;
   post_first_rt: number | null;
+  // Phase A doctrine deltas (migrations 0022/0023). Null until the
+  // path's options are weighted (only 5 screens seeded so far).
+  pre_net_governance_load: number | null;
+  post_net_governance_load: number | null;
+  pre_instability_load: number | null;
+  post_instability_load: number | null;
+  pre_rt_sd: number | null;
+  post_rt_sd: number | null;
 }
+
+// Columns selected from dashboard_active_threat_pairs — shared by the
+// loaders so the projection stays in one place.
+const ACTIVE_THREAT_PAIR_COLS =
+  'pre_avg_rt, post_avg_rt, pre_branch, post_branch, path_diverged, ' +
+  'pre_first_rt, post_first_rt, pre_net_governance_load, ' +
+  'post_net_governance_load, pre_instability_load, post_instability_load, ' +
+  'pre_rt_sd, post_rt_sd';
 
 export interface MarkerAggregate {
   marker: string;
@@ -158,9 +174,7 @@ export async function loadPhase2Snapshot(): Promise<Phase2Snapshot> {
   const [pairs, markers, completion] = await Promise.all([
     sb
       .from('dashboard_active_threat_pairs')
-      .select(
-        'pre_avg_rt, post_avg_rt, pre_branch, post_branch, path_diverged, pre_first_rt, post_first_rt',
-      ),
+      .select(ACTIVE_THREAT_PAIR_COLS),
     sb.from('dashboard_marker_aggregates').select('*'),
     sb
       .from('dashboard_completion_by_assessment')
@@ -197,9 +211,7 @@ export async function loadDashboardSnapshot(): Promise<DashboardSnapshot> {
       sb.from('dashboard_completion_by_assessment').select('*'),
       sb
         .from('dashboard_active_threat_pairs')
-        .select(
-          'pre_avg_rt, post_avg_rt, pre_branch, post_branch, path_diverged, pre_first_rt, post_first_rt',
-        ),
+        .select(ACTIVE_THREAT_PAIR_COLS),
       sb.from('dashboard_marker_aggregates').select('*'),
       sb.from('dashboard_exam_certification').select('*'),
       sb.from('dashboard_operational').select('*').single(),
