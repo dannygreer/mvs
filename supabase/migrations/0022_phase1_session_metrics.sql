@@ -46,17 +46,17 @@ agg as (
     sum(ev.w_recovery)     as recovery_total,
     sum(ev.w_intervention) as intervention_total,
     -- Timing in seconds (spec §4.2).
-    round(avg(ev.rt_ms) / 1000.0, 2)                    as mean_rt,
+    round((avg(ev.rt_ms) / 1000.0)::numeric, 2)               as mean_rt,
     round((percentile_cont(0.5) within group (
-      order by ev.rt_ms)) / 1000.0, 2)                  as median_rt,
-    round(max(ev.rt_ms) / 1000.0, 2)                    as max_rt,
-    round(min(ev.rt_ms) / 1000.0, 2)                    as min_rt,
-    round(coalesce(stddev_samp(ev.rt_ms), 0) / 1000.0, 2) as rt_sd,
-    round((max(ev.rt_ms) - min(ev.rt_ms)) / 1000.0, 2)  as rt_range,
-    round(max(ev.rt_ms) filter (
-      where ev.question_id = 'S5_CONVERGENCE') / 1000.0, 2)   as s5_rt,
-    round(max(ev.rt_ms) filter (
-      where ev.question_id = 'S6_FINAL_PRESSURE') / 1000.0, 2) as s6_rt
+      order by ev.rt_ms) / 1000.0)::numeric, 2)               as median_rt,
+    round((max(ev.rt_ms) / 1000.0)::numeric, 2)               as max_rt,
+    round((min(ev.rt_ms) / 1000.0)::numeric, 2)               as min_rt,
+    round((coalesce(stddev_samp(ev.rt_ms), 0) / 1000.0)::numeric, 2) as rt_sd,
+    round(((max(ev.rt_ms) - min(ev.rt_ms)) / 1000.0)::numeric, 2)    as rt_range,
+    round((max(ev.rt_ms) filter (
+      where ev.question_id = 'S5_CONVERGENCE') / 1000.0)::numeric, 2)   as s5_rt,
+    round((max(ev.rt_ms) filter (
+      where ev.question_id = 'S6_FINAL_PRESSURE') / 1000.0)::numeric, 2) as s6_rt
   from enrollments e
   join profiles p on p.id = e.student_id
   join assessments a on a.id = e.assessment_id and a.kind = 'scenario'
