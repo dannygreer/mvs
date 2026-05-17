@@ -190,4 +190,41 @@ begin
   from scenario_screens s
   where o.screen_fk = s.id and s.scenario_fk = v_scenario_fk
     and s.screen_id = 'S6_FINAL_PRESSURE' and o.option_label = 'D';
+
+  -- ===== Remaining 10 nodes (Missing Node Marker Completion Matrix) =====
+  -- Scully's matrix applies one uniform A/B/C/D template to all 10
+  -- nodes. Recovery is SIGN-FLIPPED here vs his doc: the original
+  -- Marker Assignment Doctrine treats negative recovery as
+  -- stabilizing; his matrix used positive-for-good. We negate his
+  -- recovery so all 15 screens share one convention and
+  -- net_governance_load stays coherent. (Flag to Scully: his two
+  -- docs disagree on recovery's sign; we assumed negative=stabilizing.)
+  --   A: recovery +1 -> -1   B: 0 (omitted)
+  --   C: recovery -1 -> +1   D: recovery +1 -> -1
+  update screen_options o set
+    triggers_markers = case o.option_label
+      when 'A' then '{"escalation":1,"narrowing":1,"premature_commitment":1,"sequencing_break":1,"intervention":2,"recovery":-1,"governance_instability":1}'::jsonb
+      when 'B' then '{"escalation":1,"narrowing":2,"premature_commitment":1,"sequencing_break":1,"drift":1,"intervention":1,"governance_instability":1}'::jsonb
+      when 'C' then '{"escalation":3,"narrowing":3,"premature_commitment":3,"sequencing_break":3,"drift":2,"recovery":1,"governance_instability":3}'::jsonb
+      when 'D' then '{"escalation":1,"narrowing":1,"sequencing_break":1,"intervention":1,"recovery":-1,"governance_instability":1}'::jsonb
+    end,
+    option_classification = case o.option_label
+      when 'A' then 'Controlled / Adaptive'
+      when 'B' then 'Acceptable / Neutral'
+      when 'C' then 'Unsafe / High Risk'
+      when 'D' then 'Controlled but Passive'
+    end,
+    rationale = case o.option_label
+      when 'A' then 'Maintains partial sequencing and preserves ambiguity tolerance.'
+      when 'B' then 'Protective movement present, but narrowing and uncertainty compression increasing.'
+      when 'C' then 'Strong acceleration and premature commitment pattern under uncertainty.'
+      when 'D' then 'Reduced impulsive movement, but may externalize control or delay adaptive action.'
+    end
+  from scenario_screens s
+  where o.screen_fk = s.id and s.scenario_fk = v_scenario_fk
+    and s.screen_id = any(array[
+      'C2_RUN_1','D2_CALL_1',
+      'A3_CONFIRM_2','B3_HIDE_2','C3_RUN_2','D3_CALL_2',
+      'A4_CONFIRM_3','B4_HIDE_3','C4_RUN_3','D4_CALL_3'
+    ]);
 end $$;

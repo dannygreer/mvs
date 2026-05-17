@@ -36,13 +36,19 @@ export const MARKER_LABELS: Record<MarkerKey, string> = {
   governance_instability: 'Governance Instability',
 };
 
-// Option-level classification labels (Report Generation Logic §5.1).
+// Option-level classification labels. Superset of the original Report
+// Generation Logic §5.1 set + the labels introduced by the Missing
+// Node Marker Completion Matrix (Controlled / Adaptive, Unsafe / High
+// Risk, Controlled but Passive). Scully's vocabulary is canonical.
 export const OPTION_CLASSIFICATIONS = [
   'Controlled / Stabilizing',
+  'Controlled / Adaptive',
+  'Controlled but Passive',
   'Premature Commitment / Acceleration',
   'Drift / Delayed Commitment',
   'Sequencing Instability',
   'Governance Instability',
+  'Unsafe / High Risk',
   'Acceptable / Neutral',
 ] as const;
 
