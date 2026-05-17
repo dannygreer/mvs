@@ -78,7 +78,7 @@ export default function AdminHeader({
         </div>
       </div>
 
-      <nav className="max-w-7xl mx-auto px-6 flex border-t border-zinc-100 overflow-x-auto overflow-y-hidden">
+      <nav className="max-w-7xl mx-auto px-6 flex items-stretch border-t border-zinc-100 overflow-x-auto overflow-y-hidden">
         {TABS.map((t) => {
           const active = isActive(activeRoute, t);
           return (
@@ -95,6 +95,14 @@ export default function AdminHeader({
             </Link>
           );
         })}
+        <a
+          href="/mvs/admin/preview/student-landing"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mvs-mono ml-auto self-center px-4 py-3 text-[11px] uppercase tracking-[0.22em] whitespace-nowrap text-zinc-500 hover:text-zinc-700 transition-colors"
+        >
+          Preview student landing ↗
+        </a>
       </nav>
     </header>
   );
